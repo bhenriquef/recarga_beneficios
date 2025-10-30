@@ -21,19 +21,16 @@
                         Buscar
                     </button>
                 </form>
-
-                {{-- <a href="{{ route('companies.create') }}" class="ml-4 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
-                    + Nova Empresa
-                </a> --}}
             </div>
+
             <table class="min-w-full border">
                 <thead>
-                    <tr class="bg-gray-100">
+                    <tr class="bg-gray-100 text-left">
                         <th class="px-3 py-2 border">ID</th>
                         <th class="px-3 py-2 border">Nome</th>
                         <th class="px-3 py-2 border">Empresa</th>
-                        <th class="px-3 py-2 border">Cargo</th>
                         <th class="px-3 py-2 border">Ativo</th>
+                        <th class="px-3 py-2 border text-center">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -42,8 +39,13 @@
                             <td class="border px-3 py-2">{{ $employee->id }}</td>
                             <td class="border px-3 py-2">{{ $employee->full_name }}</td>
                             <td class="border px-3 py-2">{{ $employee->company->name ?? '-' }}</td>
-                            <td class="border px-3 py-2">{{ $employee->position }}</td>
                             <td class="border px-3 py-2">{{ $employee->active ? 'Sim' : 'Não' }}</td>
+                            <td class="border px-3 py-2 text-center">
+                                <a href="{{ route('employees.show', $employee->id) }}"
+                                   class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition">
+                                   Detalhes
+                                </a>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

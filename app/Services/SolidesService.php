@@ -49,6 +49,7 @@ class SolidesService
             'employeeId' => $id,
             'startDate' => $inicio,
             'endDate' => $fim,
+            'size' => 1000,
         ]);
 
         if ($response->failed()) {

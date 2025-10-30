@@ -56,8 +56,6 @@ class SyncDatabase extends Command
             // Períodos de referência
             $inicio = Carbon::now()->subMonth()->day(16)->startOfDay();
             $fim = Carbon::now()->day(15)->endOfDay();
-            $inicioProximoMes = Carbon::now()->addMonth()->startOfMonth()->startOfDay();
-            $fimProximoMes = $inicioProximoMes->copy()->endOfMonth()->endOfDay();
 
             // Dias úteis de 16/mês atual até 15/mês seguinte
             $diasUteis = calcularDiasUteisComSabado(
@@ -90,7 +88,6 @@ class SyncDatabase extends Command
             $this->info("Numero de dados a serem sincronizados: ".sizeof($funcionarios));
             $inativados = 0;
             foreach ($funcionarios as $f) {
-
                 // ignorar os que foram demitidos.
                 if($f['fired'] == true){
                     $inativados++;
@@ -108,14 +105,11 @@ class SyncDatabase extends Command
                         'rg' => $f['rg'] ?? null,
                         'birthday' => $birthday ? $birthday->toDateTimeString() : null,
                         'cod_solides' => $f['id'],
-                        'address' => 'teste',
+                        'address' => null,
                         'company_id' => $companies[$f['company']['id']]['id'],
                         // 'user_id' => 1,
                     ]
                 );
-
-                if($employee->id == 136)
-                    $teste = 'a';
 
                 $ferias = 0;
                 $diasTrabalhadosMesPassado = $diasUteisMesPassado;
@@ -166,17 +160,22 @@ class SyncDatabase extends Command
                         $lastDate = $currentDate;
                     }
 
-                    if ($isInactive) {
+                    $DiferençaDeDiasMesPassado = $diasUteisMesPassadoCalc - $diasTrabalhadosMesPassado;
+                    $diasTrabalhados = $diasUteis - $DiferençaDeDiasMesPassado;
+
+                    // lembrar de perguntar ao pedro
+                    if($diasTrabalhados > $diasUteis) // caso aconteça de dias trabalhados serem maior que dias uteis, entao a gente seta igual dias uteis.
+                        $diasTrabalhados = $diasUteis;
+
+                    if ($isInactive || $diasTrabalhados < ($diasUteis/2)) {
                         $employee->update(['active' => false]);
                         $inativados++;
                         $this->info("Funcionario inativado por ter faltado mais de 7 dias direto, funcionario: ".$employee->full_name." | ".$f['id']." | data de admissao: ".Carbon::createFromTimestampMs($f['admissionDate']));
                         Log::info("🚫 {$employee->full_name} inativado (sem registro > 7 dias)");
+                        continue;
                     } else {
                         $employee->update(['active' => true]);
                     }
-
-                    $DiferençaDeDiasMesPassado = $diasUteisMesPassadoCalc - $diasTrabalhadosMesPassado;
-                    $diasTrabalhados = $diasUteis - $DiferençaDeDiasMesPassado;
                 }
 
                 // $diasTrabalhados = $diasUteis - ($faltas + $ferias);
