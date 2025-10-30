@@ -22,9 +22,9 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         // Exemplo: gerar relatório todo dia 22 à meia-noite
-        $schedule->command('benefits:generate-report')
-                 ->monthlyOn(22, '00:00')
-                 ->withoutOverlapping()
-                 ->appendOutputTo(storage_path('logs/benefit_report.log'));
+        // $schedule->command('benefits:generate-report')
+        //          ->monthlyOn(22, '00:00')
+        //          ->withoutOverlapping()
+        //          ->appendOutputTo(storage_path('logs/benefit_report.log'));
     }
 }

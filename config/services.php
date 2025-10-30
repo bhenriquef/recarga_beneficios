@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'solides' => [
+        'base_url' => env('SOLIDES_BASE_URL'),
+        'token' => env('SOLIDES_TOKEN'),
+    ],
+
+    'vr' => [
+        'base_url' => env('VR_BASE_URL'),
+        'token' => env('VR_TOKEN'),
+    ],
+
+
 ];

@@ -1,19 +1,19 @@
 <?php
 
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Company extends Model
 {
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+    use SoftDeletes;
+
     protected $fillable = [
         'name',
         'cnpj',
         'company',
+        'from',
         'cod',
         'street',
         'number',
@@ -28,5 +28,10 @@ class Company extends Model
     public function employees()
     {
         return $this->hasMany(Employee::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

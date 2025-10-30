@@ -35,9 +35,9 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
 
                 if($company){
                     $employee = Employee::updateOrCreate(
-                        ['cod' => $row[1]],
+                        ['cpf' => preg_replace('/\D/', '', $row[10]) ?? null],
                         [
-                            'cpf' => $row[10] ?? null,
+                            'cod_vr' => $row[1],
                             'active' => $row[5] == 'ATIVO' ? 1 : 0,
                             'full_name' => $row[2],
                             'email' => $row[3] ?? null,
@@ -66,7 +66,6 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
                                     'value' => floatval(str_replace(',', '.', ($row[$i+3] ?? 0))),
                                     'qtd' => $row[$i+1],
                                     'days' => $row[$i+2] != '' ? $row[$i+2] : 0,
-                                    'work_days' => $row[9] != '' ? $row[9] : 0,
                                 ]
                             );
                         }

@@ -5,27 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class EmployeesBenefits extends Model
+class Holiday extends Model
 {
     use SoftDeletes;
 
-    protected $table = 'employees_benefits';
-
     protected $fillable = [
         'employee_id',
-        'benefits_id',
-        'value',
-        'qtd',
-        'days',
+        'start_date',
+        'end_date',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
     ];
 
     public function employee()
     {
         return $this->belongsTo(Employee::class);
-    }
-
-    public function benefit()
-    {
-        return $this->belongsTo(Benefit::class, 'benefits_id');
     }
 }

@@ -28,7 +28,7 @@ class CompaniesSheetImport implements ToCollection, WithHeadingRow
 
             try {
                 Company::updateOrCreate(
-                    ['cod' => $row[2] ?? null],
+                    ['cod' => $row[2] ?? null, 'from' => 'VR',],
                     [
                         'name' => $row[10] ?? null,
                         'company' => $row[5],

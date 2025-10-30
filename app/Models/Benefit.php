@@ -1,15 +1,14 @@
 <?php
 
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Benefit extends Model
 {
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+    use SoftDeletes;
+
     protected $fillable = [
         'cod',
         'description',
@@ -24,10 +23,15 @@ class Benefit extends Model
         'address',
     ];
 
+    protected $casts = [
+        'value' => 'decimal:2',
+        'birthday' => 'date',
+    ];
+
     public function employees()
     {
         return $this->belongsToMany(Employee::class, 'employees_benefits')
-            ->withPivot(['value', 'qtd', 'days', 'work_days', 'paid'])
-            ->withTimestamps();
+                    ->withPivot(['value', 'qtd', 'days', 'work_days', 'paid'])
+                    ->withTimestamps();
     }
 }

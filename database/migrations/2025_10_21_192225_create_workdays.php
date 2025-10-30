@@ -17,8 +17,9 @@ return new class extends Migration
             $table->unsignedBigInteger('employee_id');
             $table->foreign('employee_id')->references('id')->on('employees');
 
-            $table->integer('month');
-            $table->integer('qtd');
+            $table->date('date');
+            $table->integer('business_days');
+            $table->integer('calc_days');
 
             $table->unsignedBigInteger('user_id')->nullable();
             $table->foreign('user_id')->references('id')->on('users');

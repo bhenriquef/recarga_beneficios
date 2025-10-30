@@ -23,8 +23,6 @@ return new class extends Migration
             $table->float('value')->nullable();
             $table->integer('qtd');
             $table->integer('days')->nullable();
-            $table->integer('work_days')->nullable();
-            $table->boolean('paid')->default(false);
 
             $table->unsignedBigInteger('user_id')->nullable();
             $table->foreign('user_id')->references('id')->on('users');

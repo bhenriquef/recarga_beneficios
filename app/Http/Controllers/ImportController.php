@@ -18,15 +18,17 @@ class ImportController extends Controller
 
         $file = $request->file('file');
 
-        // Salvar temporariamente em storage/app/imports
-        // $path = $file->store('imports');
+        // Gera nome personalizado
+        // Exemplo: planilha_import_2025_10_29_1503.xlsx
+        $extension = $file->getClientOriginalExtension();
+        $fileName = 'planilha_vr_referencia_' . now()->format('mY') . '.xls';
 
-        // dd($file, $path, storage_path('app/' . $path));
+        // Salva com nome customizado
+        $path = $file->storeAs('imports', $fileName);
 
         try {
-            // Excel::import(new MultiSheetImport(auth()->user()), storage_path('app/private' . $path));
-            Excel::import(new MultiSheetImport, $file); // ambas as formas funcionam
-            return redirect()->back()->with('success', 'Arquivo importado com sucesso.');
+            Excel::import(new MultiSheetImport, storage_path('app/private/' . $path));
+            return redirect()->back()->with('success', "Arquivo importado com sucesso como {$fileName}.");
         } catch (\Throwable $e) {
             Log::error('Import error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return redirect()->back()->with('error', 'Ocorreu um erro ao processar o arquivo: ' . $e->getMessage());

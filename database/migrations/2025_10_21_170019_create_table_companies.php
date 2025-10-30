@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('cnpj');
             $table->string('company');
             $table->string('cod');
-            $table->string('street');
+            $table->string('from')->nullable();
+            $table->string('street')->nullable();
             $table->string('number')->nullable();
             $table->string('complement')->nullable();
             $table->string('cep')->nullable();

@@ -16,11 +16,11 @@ return new class extends Migration
 
             $table->string('cod');
             $table->string('description');
-            $table->string('region');
-            $table->string('operator');
+            $table->string('region')->nullable();
+            $table->string('operator')->nullable();
             $table->float('value', 26, 6)->nullable();
             $table->boolean('variable')->default(false);
-            $table->string('type');
+            $table->string('type')->nullable();
             $table->boolean('rg')->default(false);
             $table->boolean('birthday')->default(false);
             $table->boolean('mother_name')->default(false);

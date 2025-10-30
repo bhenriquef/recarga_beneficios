@@ -6,6 +6,7 @@ use App\Http\Controllers\ImportController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\BenefitController;
+use App\Http\Controllers\ExportController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -24,6 +25,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/companies', [CompanyController::class, 'index'])->name('companies.index');
     Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
     Route::get('/benefits', [BenefitController::class, 'index'])->name('benefits.index');
+
+    Route::get('/exports/generate', [ExportController::class, 'generate']);
+    Route::get('/exports/check', [ExportController::class, 'check'])->name('exports.check');
+    Route::get('/exports/download/{type}', [ExportController::class, 'download'])->name('exports.download');
 });
 
 require __DIR__.'/auth.php';
