@@ -38,6 +38,8 @@ return [
     'solides' => [
         'base_url' => env('SOLIDES_BASE_URL'),
         'token' => env('SOLIDES_TOKEN'),
+        'token_n_basic' => env('SOLIDES_TOKEN_N_BASIC'),
+        'integration_token' => env('SOLIDES_INTEGRATION_TOKEN'),
     ],
 
     'vr' => [

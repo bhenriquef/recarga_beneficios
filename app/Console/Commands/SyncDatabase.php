@@ -33,7 +33,7 @@ class SyncDatabase extends Command
 
     public function handle(SolidesService $solides, VrBeneficiosService $vr)
     {
-       DB::beginTransaction();
+        DB::beginTransaction();
         $this->info("Começando a sincronização dos dados");
         try {
             // cadastrar empresas
@@ -210,17 +210,44 @@ class SyncDatabase extends Command
                     'date' => Carbon::now()->day(1)->format('Y-m-d'),
                 ], [
                     'business_days' => $diasUteis,
-                    'calc_days' => $diasTrabalhados
+                    'calc_days' => $diasTrabalhados,
+                    'start_date' => Carbon::now()->day(16)->format('Y-m-d'),
+                    'end_date' => Carbon::now()->addMonth()->day(15)->format('Y-m-d')
                 ]);
 
-                // Dias úteis registrados mes passado
-                Workday::updateOrCreate([
-                    'employee_id' => $employee->id,
-                    'date' => Carbon::now()->subMonth()->day(1)->format('Y-m-d'),
-                ], [
-                    'business_days' => $diasUteisMesPassado,
-                    'calc_days' => $diasTrabalhadosMesPassado,
-                ]);
+                // // Dias úteis registrados mes passado
+                // Workday::updateOrCreate([
+                //     'employee_id' => $employee->id,
+                //     'date' => Carbon::now()->subMonth()->day(1)->format('Y-m-d'),
+                // ], [
+                //     'business_days' => $diasUteisMesPassado,
+                //     'calc_days' => $diasTrabalhadosMesPassado,
+                // ]);
+            }
+
+            $this->info("Pegando ferias da api da tangeriono");
+            $authToken = $solides->apiTangerinoAuth();
+            $array_holidays = $solides->getHolidays($authToken);
+            if($array_holidays != []){
+                $holidays = $array_holidays['list'];
+
+                $employees = Employee::pluck('id', 'email')->toArray();
+
+                for($i = 1; $i <= $array_holidays['totalPages']; $i++){
+                    foreach($holidays as $holiday){
+                        $employee_id = $employees[$holiday['employee']['email']];
+                        Holiday::updateOrCreate([
+                            'employee_id' => $employee_id,
+                            'start_date' => $holiday['startDate'],
+                            'end_date' => $holiday['endDate'],
+                        ]);
+                    }
+
+                    if($i == $array_holidays['totalPages'])
+                        break;
+
+                    $holidays = $solides->getHolidays($authToken, $i+1)['list'];
+                }
             }
 
             DB::commit();

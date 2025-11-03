@@ -136,12 +136,4 @@ class EmployeeController extends Controller
         ));
     }
 
-    public function gerarRelatorioPDF($id)
-    {
-        $employee = Employee::with('company')->findOrFail($id);
-        $pdf = \PDF::loadView('employees.show', compact('employee'));
-        return $pdf->stream("relatorio_{$employee->id}.pdf");
-    }
-
-
 }

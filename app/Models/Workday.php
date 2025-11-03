@@ -14,6 +14,8 @@ class Workday extends Model
         'date',
         'business_days',
         'calc_days',
+        'start_date',
+        'end_date',
     ];
 
     public function employee()

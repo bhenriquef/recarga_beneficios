@@ -21,7 +21,7 @@ class ImportController extends Controller
         // Gera nome personalizado
         // Exemplo: planilha_import_2025_10_29_1503.xlsx
         $extension = $file->getClientOriginalExtension();
-        $fileName = 'planilha_vr_referencia_' . now()->format('mY') . '.xls';
+        $fileName = 'planilha_vr_referencia.xls';
 
         // Salva com nome customizado
         $path = $file->storeAs('imports', $fileName);

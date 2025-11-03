@@ -46,10 +46,26 @@ class ExportController extends Controller
             selectRaw('employees.*, companies.id as company_cnpj')
             ->join('companies', 'companies.id', '=', 'employees.company_id')
             ->where('active', true)
+            ->where('employees.id', 981)
             ->get();
 
+            $inicio_mes_util = Carbon::now()->day(16)->startOfDay()->format('Y-m-d');
+            $fim_mes_util = Carbon::now()->addMonth()->day(15)->startOfDay()->format('Y-m-d');
+
             // gera array de dias trabalhados por funcionario nesse mes
-            $workDays = Workday::where('date', Carbon::now()->day(1)->format('Y-m-d'))->pluck('calc_days', 'employee_id')->toArray();
+            $workDays = Workday::where('date', Carbon::now()->subMonth()->day(1)->format('Y-m-d'))->where('employee_id', 981)->pluck('calc_days', 'employee_id')->toArray();
+            $holidays = Holiday::where(function($query) use($inicio_mes_util, $fim_mes_util){
+                $query->whereBetween('start_date', [$inicio_mes_util, $fim_mes_util])
+                ->orWhereBetween('end_date', [$inicio_mes_util, $fim_mes_util]);
+            })
+            ->get()
+            ->keyBy('employee_id')
+            ->map(fn($item) => [
+                'start_date' => $item->start_date,
+                'end_date' => $item->end_date,
+            ])
+            ->toArray();
+
             $diasTrabalhados = $diasUteis;
             $dadosPlanilhaVR = [];
             $dadosPlanilhaIfood = [];
@@ -58,6 +74,23 @@ class ExportController extends Controller
                 // pega dias trabalhados do banco
                 if(isset($workDays[$employee->id])){
                     $diasTrabalhados = $workDays[$employee->id];
+
+                    if(isset($holidays[$employee->id])){ // calcular dias trabalhados - dias de ferias (apenas dias uteis)
+                        // caso o inicio do mes util seja menor que o inicio das ferias, calculamos pelo inicio das ferias, senao pegamos o inicio do dia util
+                        $inicio = $holidays[$employee->id]['start_date'] > $inicio_mes_util ? $holidays[$employee->id]['start_date'] : $inicio_mes_util;
+                        // caso o fim do mes util seja maior que o fim das ferias, calculamos pelo fim das ferias, senao pegamos o fim do mes util.
+                        $fim = $holidays[$employee->id]['end_date'] < $fim_mes_util ? $holidays[$employee->id]['end_date'] : $fim_mes_util;
+
+                        // ... fizemos dessa forma pois caso o inicio/fim das ferias nao se enquadre nos dias que calculamos de mes util (15(esse mes) a 16 (mes seguinte))
+                        // entao vamos pegar o inicio/fim do mes util, assim apenas calculamos as ferias que entram neste mes.
+
+                        $uteisFerias = calcularDiasUteisComSabado(
+                            Carbon::parse($inicio),
+                            Carbon::parse($fim)
+                        );
+
+                        $diasTrabalhados = $diasTrabalhados - $uteisFerias;
+                    }
                 }
 
                 // gera dados da planilha vr
@@ -95,7 +128,7 @@ class ExportController extends Controller
             Excel::download(new IfoodExport($dadosPlanilhaIfood), $fileNameIfood);
 
             // gera planilha vr
-            $this->atualizarDiasTrabalhados($dadosPlanilhaVR);
+            $this->generateVRSheet($dadosPlanilhaVR);
 
             return response()->json(['Success' => 'Excel gerado!'], 200);
         } catch (\Throwable $e) {
@@ -142,10 +175,14 @@ class ExportController extends Controller
         return response()->download(storage_path("app/private/{$filePath}"));
     }
 
-    public function atualizarDiasTrabalhados(array $dados)
+    public function generateVRSheet(array $dados)
     {
+        if(!Storage::disk('local')->exists('imports/planilha_vr_referencia.xls')){
+            throw new \Exception('Arquivo de referencia "planilha_vr_referencia" não encontrado');
+        }
+
         // Caminho do arquivo recebido (por exemplo, após upload)
-        $path = storage_path('app/private/imports/planilha_vr_referencia_'.now()->format('mY').'.xls');
+        $path = storage_path('app/private/imports/planilha_vr_referencia.xls');
 
         // Carrega o arquivo original
         $spreadsheet = IOFactory::load($path);

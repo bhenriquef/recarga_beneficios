@@ -20,6 +20,8 @@ return new class extends Migration
             $table->date('date');
             $table->integer('business_days');
             $table->integer('calc_days');
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
 
             $table->unsignedBigInteger('user_id')->nullable();
             $table->foreign('user_id')->references('id')->on('users');
