@@ -32,6 +32,11 @@
                         Beneficios
                     </x-nav-link>
                 </div>
+                <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
+                    <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
+                        Usuarios
+                    </x-nav-link>
+                </div>
                 <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center" style="z-index: 100">
                     <div x-data="{ openImport: false }" class="relative">
                         <button

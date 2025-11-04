@@ -10,7 +10,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
 
 Route::get('/', function () {
-    return view('welcome');
+    return view('auth.login');
 });
 
 // Route::get('/dashboard', function () {
@@ -36,6 +36,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/exports/generate', [ExportController::class, 'generate']);
     Route::get('/exports/check', [ExportController::class, 'check'])->name('exports.check');
     Route::get('/exports/download/{type}', [ExportController::class, 'download'])->name('exports.download');
+
+    Route::resource('users', \App\Http\Controllers\UserController::class);
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');

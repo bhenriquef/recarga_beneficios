@@ -46,14 +46,13 @@ class ExportController extends Controller
             selectRaw('employees.*, companies.id as company_cnpj')
             ->join('companies', 'companies.id', '=', 'employees.company_id')
             ->where('active', true)
-            ->where('employees.id', 981)
             ->get();
 
             $inicio_mes_util = Carbon::now()->day(16)->startOfDay()->format('Y-m-d');
             $fim_mes_util = Carbon::now()->addMonth()->day(15)->startOfDay()->format('Y-m-d');
 
             // gera array de dias trabalhados por funcionario nesse mes
-            $workDays = Workday::where('date', Carbon::now()->subMonth()->day(1)->format('Y-m-d'))->where('employee_id', 981)->pluck('calc_days', 'employee_id')->toArray();
+            $workDays = Workday::where('date', Carbon::now()->subMonth()->day(1)->format('Y-m-d'))->pluck('calc_days', 'employee_id')->toArray();
             $holidays = Holiday::where(function($query) use($inicio_mes_util, $fim_mes_util){
                 $query->whereBetween('start_date', [$inicio_mes_util, $fim_mes_util])
                 ->orWhereBetween('end_date', [$inicio_mes_util, $fim_mes_util]);

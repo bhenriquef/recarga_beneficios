@@ -18,7 +18,7 @@ class DashboardController extends Controller
         $totalInativos     = Employee::where('active', false)->count();
 
         // Mês de referência: a tua sincronização grava dia 1
-        $refDate = Carbon::now()->startOfMonth()->format('Y-m-d');
+        $refDate = Carbon::now()->subMonth()->startOfMonth()->format('Y-m-d');
 
         // 2) Funcionários com dias trabalhados ≠ dias úteis
         $funcsDiasDiferentes = Workday::whereDate('date', $refDate)
