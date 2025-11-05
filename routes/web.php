@@ -41,6 +41,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
+
+    Route::get('/dashboard/{mes}', [DashboardController::class, 'index'])
+        ->name('dashboard');
 });
 
 require __DIR__.'/auth.php';

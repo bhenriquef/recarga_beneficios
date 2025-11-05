@@ -6,7 +6,7 @@
     <div class="py-6 max-w-7xl mx-auto">
         <div class="bg-white shadow sm:rounded-lg p-6">
             <div class="flex justify-between items-center mb-4">
-                <form method="GET" action="{{ route('employees.index') }}" class="flex w-full sm:w-1/2">
+                <form method="GET" action="{{ route('employees.index') }}" @submit="loading = true" class="flex w-full sm:w-1/2">
                     <input
                         type="text"
                         name="search"

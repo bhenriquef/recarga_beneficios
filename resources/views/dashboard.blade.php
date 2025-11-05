@@ -1,8 +1,25 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            Dashboard — {{ $refMes }}
-        </h2>
+        <div class="flex items-center gap-3">
+            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                Dashboard — {{ $refMes }}
+            </h2>
+
+            <form method="GET" action="{{ route('dashboard') }}" @submit="loading = true" class="flex items-center gap-2">
+                <input type="hidden" name="y" value="{{ now()->year }}">
+                <select
+                    name="m"
+                    class="border border-gray-300 rounded-md px-5 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    onchange="this.form.submit()"
+                >
+                    @foreach($meses as $valor => $nome)
+                        <option value="{{ $valor }}" @selected($mesAtual == $valor)>
+                            {{ ucfirst($nome) }}
+                        </option>
+                    @endforeach
+                </select>
+            </form>
+        </div>
     </x-slot>
 
     <div class="py-6">

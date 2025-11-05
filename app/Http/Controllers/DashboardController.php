@@ -6,19 +6,41 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\Employee;
 use App\Models\Workday;
-use PhpOffice\PhpSpreadsheet\Calculation\DateTimeExcel\WorkDay as DateTimeExcelWorkDay;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+
+        // Base para seleção automática: se dia >= 16 usa o mês atual, senão mês anterior
+        $today = Carbon::today();
+        $base  = $today->day >= 16 ? $today->copy() : $today->copy()->subMonth();
+
+        // Mês/ano vindos da UI (ou automáticos)
+        $mes = (int) ($request->get('m') ?? $base->format('m'));
+        $ano = (int) ($request->get('y') ?? $base->year);
+
+        // Janela: 16/M selecionado até 15/(M+1)
+        $inicio = Carbon::createFromDate($ano, $mes, 16)->startOfDay();
+        $fim    = $inicio->copy()->addMonth()->subDay()->endOfDay();
+
+        // Label exibida
+        $refMes   = $inicio->format('d/m') . ' até ' . $fim->format('d/m');
+        $mesAtual = str_pad($mes, 2, '0', STR_PAD_LEFT);
+
+        // Lista de meses (pt-BR) para o <select>
+        $meses = collect(range(1, 12))->mapWithKeys(function ($m) {
+            return [str_pad($m, 2, '0', STR_PAD_LEFT)
+                => Carbon::create()->month($m)->locale('pt_BR')->monthName];
+        })->toArray();
 
         // 1) Totais de funcionários
         $totalFuncionarios = Employee::count();
         $totalInativos     = Employee::where('active', false)->count();
 
-        // Mês de referência: a tua sincronização grava dia 1
-        $refDate = Carbon::now()->subMonth()->startOfMonth()->format('Y-m-d');
+        // Mês de referência
+        $refDate = $inicio->startOfMonth()->format('Y-m-d');
 
         // 2) Funcionários com dias trabalhados ≠ dias úteis
         $funcsDiasDiferentes = Workday::whereDate('date', $refDate)
@@ -78,13 +100,13 @@ class DashboardController extends Controller
         ->limit(10)
         ->get();
 
-        // (Opcional) Arredonda melhor para exibição
+        // Arredonda melhor para exibição
         $fmt = fn ($v) => is_null($v) ? 0 : (float) $v;
 
-        $refMes = Carbon::now()->subMonth()->day(16)->format('d/m')." até ".Carbon::now()->day(15)->format('d/m');
-
         return view('dashboard', [
-            'refMes'                     => $refMes,
+            'refMes'   => $refMes,
+            'mesAtual' => $mesAtual,
+            'meses'    => $meses,
             'funcsDiasDiferentes'        => $funcsDiasDiferentes,
             'totalBeneficios'            => $fmt($totalBeneficios),
             'totalIfood'                 => $fmt($totalIfood),

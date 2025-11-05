@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -17,7 +18,7 @@
 </head>
 <body class="font-sans antialiased bg-gray-100">
 
-    <!-- ✅ Notificações Flutuantes -->
+    <!-- Notificações Flutuantes -->
     <div class="fixed top-5 right-5 space-y-2 z-50">
         @if (session('success'))
             <div
@@ -59,7 +60,7 @@
             </div>
         @endif
     </div>
-    <!-- ✅ Fim das notificações -->
+    <!-- Fim das notificações -->
 
     <div class="min-h-screen">
         @include('layouts.navigation')
@@ -72,11 +73,14 @@
             </header>
         @endisset
 
-        <main>
+        <main x-data="{loading: false}">
+            <div x-show="loading" style="z-index: 500" x-cloak class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                <div class="animate-spin rounded-full h-14 w-14 border-t-4 border-indigo-500 border-solid"></div>
+            </div>
             {{ $slot }}
         </main>
     </div>
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <x-alpine-alert />
 </body>
 </html>

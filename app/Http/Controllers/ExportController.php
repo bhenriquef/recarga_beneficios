@@ -30,16 +30,21 @@ use PhpOffice\PhpSpreadsheet\Writer\Xls;
 
 class ExportController extends Controller
 {
+    protected $baseDate;
+
+    public function __construct($baseDate = null){
+        $today = Carbon::today();
+        $baseDate = $today->day >= 16 ? $today->copy() : $today->copy()->subMonth();
+        $this->baseDate = $baseDate;
+    }
+
     public function generate(Request $request, SolidesService $solides, VrBeneficiosService $vr)
     {
         try {
-            // Períodos de referência
-            $inicioMes = Carbon::now()->startOfMonth();
-
             // Dias úteis de 16/mês atual até 15/mês seguinte
             $diasUteis = calcularDiasUteisComSabado(
-                Carbon::now()->day(16),
-                Carbon::now()->addMonth()->day(15)
+                $this->baseDate->day(16),
+                $this->baseDate->addMonth()->day(15)
             );
 
             $employees = Employee::
@@ -48,11 +53,11 @@ class ExportController extends Controller
             ->where('active', true)
             ->get();
 
-            $inicio_mes_util = Carbon::now()->day(16)->startOfDay()->format('Y-m-d');
-            $fim_mes_util = Carbon::now()->addMonth()->day(15)->startOfDay()->format('Y-m-d');
+            $inicio_mes_util = $this->baseDate->day(16)->startOfDay()->format('Y-m-d');
+            $fim_mes_util = $this->baseDate->addMonth()->day(15)->startOfDay()->format('Y-m-d');
 
             // gera array de dias trabalhados por funcionario nesse mes
-            $workDays = Workday::where('date', Carbon::now()->subMonth()->day(1)->format('Y-m-d'))->pluck('calc_days', 'employee_id')->toArray();
+            $workDays = Workday::where('date', $this->baseDate->subMonth()->day(1)->format('Y-m-d'))->pluck('calc_days', 'employee_id')->toArray();
             $holidays = Holiday::where(function($query) use($inicio_mes_util, $fim_mes_util){
                 $query->whereBetween('start_date', [$inicio_mes_util, $fim_mes_util])
                 ->orWhereBetween('end_date', [$inicio_mes_util, $fim_mes_util]);
@@ -114,7 +119,7 @@ class ExportController extends Controller
             }
 
             // Excel ifood
-            $fileNameIfood = 'planilha_ifood_' . Carbon::now()->format('mY') . '.xls';
+            $fileNameIfood = 'planilha_ifood_' . $this->baseDate->format('mY') . '.xls';
             $pathIfood = "exports/ifood/{$fileNameIfood}";
             Storage::makeDirectory('exports/ifood');
 
@@ -129,16 +134,15 @@ class ExportController extends Controller
             // gera planilha vr
             $this->generateVRSheet($dadosPlanilhaVR);
 
-            return response()->json(['Success' => 'Excel gerado!'], 200);
+            return response()->json(['Success' => 'Excel gerado com sucesso!'], 200);
         } catch (\Throwable $e) {
-
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json(['Error' => 'Erro ao gerar arquivos.'], 500);
         }
     }
 
     public function check()
     {
-        $mesAtual = Carbon::now()->format('mY');
+        $mesAtual = $this->baseDate->format('mY');
 
         // Caminhos dos arquivos
         $ifoodPath = "exports/ifood/planilha_ifood_{$mesAtual}.xls";
@@ -164,7 +168,7 @@ class ExportController extends Controller
 
     public function download($type)
     {
-        $mesAtual = Carbon::now()->format('mY');
+        $mesAtual = $this->baseDate->format('mY');
         $filePath = "exports/{$type}/planilha_{$type}_{$mesAtual}.xls";
 
         if (!Storage::disk('local')->exists($filePath)) {
@@ -217,7 +221,7 @@ class ExportController extends Controller
         }
 
         // Excel VR
-        $fileNameVR = 'planilha_vr_' . Carbon::now()->format('mY') . '.xls';
+        $fileNameVR = 'planilha_vr_' . $this->baseDate->format('mY') . '.xls';
         Storage::makeDirectory('exports/vr');
         $pathVR = Storage::path("private/exports/vr/{$fileNameVR}");
 

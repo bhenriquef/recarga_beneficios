@@ -37,7 +37,7 @@
                         Usuarios
                     </x-nav-link>
                 </div>
-                <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center" style="z-index: 100">
+                <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
                     <div x-data="{ openImport: false }" class="relative">
                         <button
                             @click="openImport = true"
@@ -75,30 +75,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center" style="z-index: 100">
-                    <div x-data="exportModal()" class="relative">
-                        <!-- Botão -->
-                        <button @click="open()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"> Gerar Excel
-                        </button>
-
-                        <!-- Modal -->
-                        <div x-show="openModal" x-transition.opacity x-cloak class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" @keydown.escape.window="close()" @click="close()">
-                            <div class="bg-white p-6 rounded-lg shadow-xl w-96 text-center relative" @click.stop>
-                                <button @click="close()" class="absolute top-2 right-3 text-gray-400 hover:text-gray-600 text-lg font-bold" aria-label="Fechar">&times;</button>
-
-                                <h2 class="text-lg font-semibold mb-3">Gerar arquivo Excel</h2>
-                                <p class="mb-6 text-gray-700" x-text="mensagem">Verificando arquivos...</p>
-
-                                <div class="flex justify-center gap-3">
-                                    <button x-show="links.ifood" @click="baixar('ifood')" class="bg-green-600 text-white px-4 py-2 rounded">Baixar iFood</button>
-                                    <button x-show="links.vr" @click="baixar('vr')" class="bg-blue-600 text-white px-4 py-2 rounded">Baixar VR</button>
-                                    <button @click="gerarNovos()" class="bg-purple-600 text-white px-4 py-2 rounded">Gerar Novo</button>
-                                </div>
-                                <button @click="close()" class="mt-4 text-gray-500">Cancelar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <x-export-modal />
             </div>
 
             <!-- Settings Dropdown -->
@@ -117,9 +94,9 @@
                     </x-slot>
 
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('profile.edit')">
+                        {{-- <x-dropdown-link :href="route('profile.edit')">
                             {{ __('Profile') }}
-                        </x-dropdown-link>
+                        </x-dropdown-link> --}}
 
                         <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
@@ -128,7 +105,7 @@
                             <x-dropdown-link :href="route('logout')"
                                     onclick="event.preventDefault();
                                                 this.closest('form').submit();">
-                                {{ __('Log Out') }}
+                                {{ __('Sair') }}
                             </x-dropdown-link>
                         </form>
                     </x-slot>
