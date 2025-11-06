@@ -13,6 +13,7 @@ services:
         generateValue: true
       - key: APP_URL
         value: https://seuapp.onrender.com
+
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_HOST
