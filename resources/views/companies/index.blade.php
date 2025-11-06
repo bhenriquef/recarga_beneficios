@@ -32,7 +32,9 @@
                         <th class="px-3 py-2 border">ID</th>
                         <th class="px-3 py-2 border">Nome</th>
                         <th class="px-3 py-2 border">CNPJ</th>
+                        <th class="px-3 py-2 border">Nº Funcionarios</th>
                         <th class="px-3 py-2 border">Cidade</th>
+                        <th class="px-3 py-2 border text-center">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -41,7 +43,14 @@
                             <td class="border px-3 py-2">{{ $company->id }}</td>
                             <td class="border px-3 py-2">{{ $company->name }}</td>
                             <td class="border px-3 py-2">{{ $company->cnpj }}</td>
+                            <td class="border px-3 py-2">{{ $company->employees_count  }}</td>
                             <td class="border px-3 py-2">{{ $company->city }}</td>
+                            <td class="border px-3 py-2 text-center">
+                                <a href="{{ route('companies.show', $company->id) }}"
+                                   class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition">
+                                   Detalhes
+                                </a>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

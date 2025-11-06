@@ -75,7 +75,10 @@ class DashboardController extends Controller
             ->avg('total_por_func');
 
         // 6) Média de iFood por funcionário (mesma ideia, filtrando iFood)
-        $avgIfoodPorFuncionario = $totalIfood / ($totalFuncionarios - $totalInativos);
+        $avgIfoodPorFuncionario = 0;
+        if($totalFuncionarios > 0){
+            $avgIfoodPorFuncionario = $totalIfood / ($totalFuncionarios - $totalInativos);
+        }
 
         // 7) Média do número de passagens por funcionário (VR)
         //    Aqui considero "qtd" como passagens/dia configuradas; se quiser a média mensal, troque para AVG(m.work_days * m.qtd)

@@ -24,7 +24,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/imports/upload', [ImportController::class, 'upload'])->name('imports.upload');
 
     Route::get('/companies', [CompanyController::class, 'index'])->name('companies.index');
+    Route::get('/companies/{company_id}', [CompanyController::class, 'show'])->name('companies.show');
+
     Route::get('/benefits', [BenefitController::class, 'index'])->name('benefits.index');
+    Route::get('/benefits/{benefit_id}', [BenefitController::class, 'show'])->name('benefits.show');
 
     // routes/web.php
     Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
@@ -40,9 +43,6 @@ Route::middleware('auth')->group(function () {
     Route::resource('users', \App\Http\Controllers\UserController::class);
 
     Route::get('/dashboard', [DashboardController::class, 'index'])
-        ->name('dashboard');
-
-    Route::get('/dashboard/{mes}', [DashboardController::class, 'index'])
         ->name('dashboard');
 });
 

@@ -34,6 +34,8 @@
                         <th class="px-3 py-2 border">Descrição</th>
                         <th class="px-3 py-2 border">Tipo</th>
                         <th class="px-3 py-2 border">Valor</th>
+                        <th class="px-3 py-2 border">Nº Funcionarios</th>
+                        <th class="px-3 py-2 border text-center">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -44,6 +46,13 @@
                             <td class="border px-3 py-2">{{ $benefit->description }}</td>
                             <td class="border px-3 py-2">{{ $benefit->type }}</td>
                             <td class="border px-3 py-2">R$ {{ number_format($benefit->value, 2, ',', '.') }}</td>
+                            <td class="border px-3 py-2">{{ $benefit->employees_count  }}</td>
+                            <td class="border px-3 py-2 text-center">
+                                <a href="{{ route('benefits.show', $benefit->id) }}"
+                                   class="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition">
+                                   Detalhes
+                                </a>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

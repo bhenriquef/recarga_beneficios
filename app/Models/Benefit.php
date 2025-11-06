@@ -30,7 +30,7 @@ class Benefit extends Model
 
     public function employees()
     {
-        return $this->belongsToMany(Employee::class, 'employees_benefits')
+        return $this->belongsToMany(Employee::class, 'employees_benefits', 'benefits_id')
                     ->withPivot(['value', 'qtd', 'days', 'work_days', 'paid'])
                     ->withTimestamps();
     }
