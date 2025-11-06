@@ -7,12 +7,12 @@ services:
     envVars:
       - key: APP_ENV
         value: production
-      - key: APP_KEY
-        generateValue: true
       - key: APP_DEBUG
         value: false
+      - key: APP_KEY
+        generateValue: true
       - key: APP_URL
-        value: https://seuprojeto.onrender.com
+        value: https://seuapp.onrender.com
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_HOST
@@ -20,7 +20,9 @@ services:
           name: laravel-db
           property: host
       - key: DB_PORT
-        value: 5432
+        fromDatabase:
+          name: laravel-db
+          property: port
       - key: DB_DATABASE
         fromDatabase:
           name: laravel-db
@@ -33,6 +35,7 @@ services:
         fromDatabase:
           name: laravel-db
           property: password
+
 databases:
   - name: laravel-db
     plan: free
