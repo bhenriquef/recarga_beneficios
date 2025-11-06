@@ -15,7 +15,9 @@
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^3.1",
         "nesbot/carbon": "^3.10",
-        "psr/simple-cache": "1.0"
+        "psr/simple-cache": "1.0",
+        "ext-gd": "*",
+        "ext-bcmath": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
