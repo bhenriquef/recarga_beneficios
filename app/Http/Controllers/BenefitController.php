@@ -10,25 +10,47 @@ class BenefitController extends Controller
 {
     public function index(Request $request)
     {
-        $search = $request->input('search');
+        $search        = $request->input('search');
+        $hasEmployees  = $request->input('has_employees');          // '', '1', '0'
+        $onlyVariable  = $request->boolean('only_variable');        // checkbox
 
-        $benefits = \App\Models\Benefit::query()
+        $benefits = Benefit::query()
             ->withCount('employees')
             ->when($search, function ($query, $search) {
-                $query->where('description', 'like', "%{$search}%")
+                $query->where(function ($q) use ($search) {
+                    $q->where('description', 'like', "%{$search}%")
                     ->orWhere('cod', 'like', "%{$search}%")
                     ->orWhere('region', 'like', "%{$search}%")
-                    ->orWhere('operator', 'like', "%{$search}%");
+                    ->orWhere('operator', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%");
+                });
+            })
+            // filtro: benefícios com / sem funcionários
+            ->when($hasEmployees !== null && $hasEmployees !== '', function ($query) use ($hasEmployees) {
+                if ($hasEmployees === '1') {
+                    $query->having('employees_count', '>', 0);
+                } elseif ($hasEmployees === '0') {
+                    $query->having('employees_count', '=', 0);
+                }
+            })
+            // somente benefícios variáveis
+            ->when($onlyVariable, function ($query) {
+                $query->where('variable', true);
             })
             ->orderByDesc('employees_count')
             ->orderBy('description')
             ->paginate(10)
-            ->appends(['search' => $search]);
+            ->appends($request->query());
 
-        return view('benefits.index', compact('benefits', 'search'));
+        return view('benefits.index', compact(
+            'benefits',
+            'search',
+            'hasEmployees',
+            'onlyVariable'
+        ));
     }
 
- public function show($benefitId)
+    public function show($benefitId)
     {
         $benefit = Benefit::findOrFail($benefitId);
 
@@ -152,6 +174,20 @@ class BenefitController extends Controller
             ->limit(10)
             ->get();
 
+        $funcionariosBeneficio = DB::table('employees_benefits_monthly as m')
+        ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+        ->join('employees as e', 'e.id', '=', 'eb.employee_id')
+        ->where('eb.benefits_id', $benefitId)
+        ->select(
+            'e.id',
+            'e.full_name',
+            'e.active',
+            DB::raw('SUM(m.total_value) as total_beneficio')
+        )
+        ->groupBy('e.id', 'e.full_name', 'e.active')
+        ->orderBy('e.full_name')
+        ->get();
+
         /**
          * 6) Resumo (cards)
          */
@@ -178,7 +214,9 @@ class BenefitController extends Controller
             'totalIfoodPeriodo',
             'totalTodosPeriodo',
             'totalOutrosPeriodo',
-            'participacaoNoTotal'
+            'participacaoNoTotal',
+            'funcionariosBeneficio', // 👈 NOVO
         ));
+
     }
 }

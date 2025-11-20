@@ -13,7 +13,9 @@ return new class extends Migration
     {
         Schema::create('absenteeism', function (Blueprint $table) {
             $table->id();
-            $table->date('date');
+            $table->date('start_date');
+            $table->date('end_date');
+            $table->string('solides_id')->nullable();
 
             $table->unsignedBigInteger('employee_id');
             $table->foreign('employee_id')->references('id')->on('employees');

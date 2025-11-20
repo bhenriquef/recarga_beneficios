@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\MultiSheetImport;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
+use Illuminate\Support\Facades\Cache;
 
 class ImportController extends Controller
 {
@@ -34,4 +36,37 @@ class ImportController extends Controller
             return redirect()->back()->with('error', 'Ocorreu um erro ao processar o arquivo: ' . $e->getMessage());
         }
     }
+
+    public function runSyncDatabase()
+    {
+        try {
+            Cache::put('sync_progress', 0);
+            Cache::put('sync_logs', []);
+
+            $php = env('PHP_PATH', 'C:\php\php.exe');
+            $base = base_path();
+
+            // RODA EM BACKGROUND COM --stream
+            $cmd = "cmd /C \"cd {$base} && start \"\" /B \"{$php}\" artisan sync:database --stream\"";
+
+            Log::info("🔧 CMD executado: $cmd");
+
+            // inicia processo sem bloquear e sem abrir janela
+            pclose(popen($cmd, 'r'));
+
+            Log::info('🔥 Processo de sync iniciado via start /B');
+
+            return response()->json(['started' => true]);
+
+        } catch (\Throwable $e) {
+            Log::error("❌ Erro ao iniciar processo: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao iniciar sincronização.'
+            ], 500);
+        }
+    }
+
+
+
 }

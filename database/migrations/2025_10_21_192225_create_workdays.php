@@ -20,6 +20,7 @@ return new class extends Migration
             $table->date('date');
             $table->integer('business_days');
             $table->integer('calc_days');
+            $table->integer('worked_days')->nullable();
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
 

@@ -38,7 +38,67 @@ class ExportController extends Controller
         $this->baseDate = $baseDate;
     }
 
-    public function generate(Request $request, SolidesService $solides, VrBeneficiosService $vr)
+    public function generateCustomIfoodExcel(Request $request){
+        try{
+            $diasUteis = calcularDiasUteisComSabado(
+                Carbon::parse($request->admission_start),
+                Carbon::parse($request->admission_end)
+            );
+
+            $employees_array = json_decode($request->employees, true);
+            $ids = collect($employees_array)->pluck('id')->toArray();
+            $valores = collect($employees_array)->pluck('valorPassagem', 'id');
+
+            $employees = Employee::
+            selectRaw('employees.*, companies.cnpj as company_cnpj')
+            ->join('companies', 'companies.id', '=', 'employees.company_id')
+            ->where('active', true)
+            ->whereIn('employees.id', $ids)
+            ->get();
+
+            foreach ($employees as $employee) {
+                // ifood = dias trabalhados * 10;
+                $valorTotalIfood = $diasUteis * $valores[$employee->id];
+
+                // formatando data pro excel do ifood
+                $birthday = $employee->birthday ? Carbon::parse($employee->birthday)->format('d/m/Y') : null;
+
+                // gera dados da planilha ifood
+                $dadosPlanilhaIfood[] = [
+                    'cnpj' => $employee->company_cnpj,
+                    'nome' => $employee->full_name,
+                    'cpf' => $employee->cpf,
+                    'data_nascimento' => $birthday,
+                    'livre' => $valorTotalIfood,
+                ];
+            }
+
+            // Excel ifood
+            $fileNameIfood = 'planilha_ifood_' . $this->baseDate->format('mY') . '.xls';
+            $pathIfood = "exports/ifood/{$fileNameIfood}";
+            Storage::makeDirectory('exports/ifood');
+
+            if (Storage::disk('local')->exists($pathIfood)) {
+                Storage::disk('local')->delete($pathIfood);
+                Log::info("Arquivo antigo do iFood removido antes de gerar novo: {$pathIfood}");
+            }
+
+            Excel::store(new IfoodExport($dadosPlanilhaIfood), "exports/ifood/{$fileNameIfood}");
+            // Excel::download(new IfoodExport($dadosPlanilhaIfood), $fileNameIfood);
+
+            // $filePath = "exports/ifood/{$fileNameIfood}";
+
+            // if (!Storage::disk('local')->exists($filePath)) {
+            //     abort(404, 'Arquivo não encontrado');
+            // }
+
+            return Excel::download(new IfoodExport($dadosPlanilhaIfood), $fileNameIfood);
+        } catch (\Throwable $e) {
+            return response()->json(['Error' => 'Erro ao gerar arquivo.'], 500);
+        }
+    }
+
+    public function generate(Request $request)
     {
         try {
             // Dias úteis de 16/mês atual até 15/mês seguinte
@@ -47,21 +107,36 @@ class ExportController extends Controller
                 $this->baseDate->addMonth()->day(15)
             );
 
+            $inicio_mes_util = $this->baseDate->day(16)->startOfDay()->format('Y-m-d');
+            $fim_mes_util = $this->baseDate->addMonth()->day(15)->startOfDay()->format('Y-m-d');
+
             $employees = Employee::
-            selectRaw('employees.*, companies.id as company_cnpj')
+            selectRaw('employees.*, companies.cnpj as company_cnpj')
             ->join('companies', 'companies.id', '=', 'employees.company_id')
             ->where('active', true)
             ->get();
 
-            $inicio_mes_util = $this->baseDate->day(16)->startOfDay()->format('Y-m-d');
-            $fim_mes_util = $this->baseDate->addMonth()->day(15)->startOfDay()->format('Y-m-d');
-
             // gera array de dias trabalhados por funcionario nesse mes
             $workDays = Workday::where('date', $this->baseDate->subMonth()->day(1)->format('Y-m-d'))->pluck('calc_days', 'employee_id')->toArray();
-            $holidays = Holiday::where(function($query) use($inicio_mes_util, $fim_mes_util){
+            $holidays = Holiday::join('employees', 'employees.id', '=', 'holidays.employee_id')
+            ->where('employees.active', true)
+            ->where(function($query) use($inicio_mes_util, $fim_mes_util){
                 $query->whereBetween('start_date', [$inicio_mes_util, $fim_mes_util])
                 ->orWhereBetween('end_date', [$inicio_mes_util, $fim_mes_util]);
             })
+            ->selectRaw('holidays.employee_id, holidays.start_date, holidays.end_date')
+            ->get()
+            ->keyBy('employee_id')
+            ->map(fn($item) => [
+                'start_date' => $item->start_date,
+                'end_date' => $item->end_date,
+            ])
+            ->toArray();
+
+            $absenteeisms = Absenteeism::join('employees', 'employees.id', '=', 'absenteeism.employee_id')
+            ->where('employees.active', true)
+            ->where('end_date', '>=', $inicio_mes_util)
+            ->selectRaw('absenteeism.employee_id, absenteeism.start_date, absenteeism.end_date')
             ->get()
             ->keyBy('employee_id')
             ->map(fn($item) => [
@@ -95,7 +170,27 @@ class ExportController extends Controller
 
                         $diasTrabalhados = $diasTrabalhados - $uteisFerias;
                     }
+
+                    if(isset($absenteeisms[$employee->id])){ // calcular dias trabalhados - dias de ausencia (apenas dias uteis)
+                        // caso o inicio do mes util seja menor que o inicio das ausencia, calculamos pelo inicio das ausencia, senao pegamos o inicio do dia util
+                        $inicio = $absenteeisms[$employee->id]['start_date'] > $inicio_mes_util ? $absenteeisms[$employee->id]['start_date'] : $inicio_mes_util;
+                        // caso o fim do mes util seja maior que o fim das ausencia, calculamos pelo fim das ausencia, senao pegamos o fim do mes util.
+                        $fim = $absenteeisms[$employee->id]['end_date'] < $fim_mes_util ? $absenteeisms[$employee->id]['end_date'] : $fim_mes_util;
+
+                        // ... fizemos dessa forma pois caso o inicio/fim das ausencia nao se enquadre nos dias que calculamos de mes util (15(esse mes) a 16 (mes seguinte))
+                        // entao vamos pegar o inicio/fim do mes util, assim apenas calculamos as ausencia que entram neste mes.
+
+                        $uteisAusencia = calcularDiasUteisComSabado(
+                            Carbon::parse($inicio),
+                            Carbon::parse($fim)
+                        );
+
+                        $diasTrabalhados = $diasTrabalhados - $uteisAusencia;
+                    }
                 }
+
+                if($diasTrabalhados <= 0)
+                    continue;
 
                 // gera dados da planilha vr
                 $dadosPlanilhaVR[] = [
@@ -114,7 +209,7 @@ class ExportController extends Controller
                     'nome' => $employee->full_name,
                     'cpf' => $employee->cpf,
                     'data_nascimento' => $birthday,
-                    'livre' => $valorTotalIfood,
+                    'alimentacao' => $valorTotalIfood,
                 ];
             }
 
@@ -237,5 +332,9 @@ class ExportController extends Controller
         $writer->save($outputPath);
 
         return response()->download($outputPath);
+    }
+
+    public function indexCustomExport(){
+        return view('excel-generator');
     }
 }

@@ -124,4 +124,22 @@ class SolidesService
 
         return isset($response_json['item']) ? $response_json['item'] : [];
     }
+
+    public function getAbsenteeism($lastUpdate, $page = 1){
+        $response = $this->client()->get('https://employer.tangerino.com.br/adjustment/find-all', [
+            'lastUpdate' => $lastUpdate,
+            'size' => 1000,
+            'page' => $page,
+        ]);
+
+        if ($response->failed()) {
+            logger()->error('Erro ao buscar empresas na Solides', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            throw new \Exception("Erro na API Solides: {$response->status()}");
+        }
+
+        return $response->json() ?? [];
+    }
 }

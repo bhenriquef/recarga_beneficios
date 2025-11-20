@@ -9,14 +9,19 @@ class Absenteeism extends Model
 {
     use SoftDeletes;
 
+    protected $table = 'absenteeism';
+
     protected $fillable = [
         'employee_id',
-        'date',
+        'start_date',
+        'end_date',
         'reason',
+        'solides_id',
     ];
 
     protected $casts = [
-        'date' => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
     ];
 
     public function employee()

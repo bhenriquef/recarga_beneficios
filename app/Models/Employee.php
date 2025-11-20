@@ -27,6 +27,7 @@ class Employee extends Model
         'shutdown_programming',
         'company_id',
         'user_id',
+        'admission_date',
     ];
 
     protected $casts = [

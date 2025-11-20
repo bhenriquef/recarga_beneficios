@@ -9,7 +9,6 @@ use App\Exports\VRExport;
 use App\Services\SolidesService;
 use App\Services\VrBeneficiosService;
 use Illuminate\Support\Facades\Log;
-// use App\Mail\EmployeeBenefitsReport;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 use App\Models\{
@@ -25,89 +24,194 @@ use App\Models\{
     EmployeesBenefits
 };
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class SyncDatabase extends Command
 {
-    protected $signature = 'sync:database';
+    protected $signature = 'sync:database {--stream}';
     protected $description = 'Sincroniza o banco de dados com os dados da solides e vr';
+
+    /* --------------------------------------------------------------
+     * Helpers para progress/log
+     * -------------------------------------------------------------- */
+    private function updateProgress(float $progress, ?string $eta = null): void
+    {
+        // Garante que fica entre 0 e 100
+        $progress = number_format(max(0, min(100, $progress)), 2);
+        $isStream = $this->option('stream');
+
+        if ($isStream) {
+            Cache::put('sync_progress', $progress);
+
+            if ($eta !== null) {
+                Cache::put('sync_eta', $eta);
+            }
+        }
+    }
+
+    private function addLog(string $message): void
+    {
+        $isStream = $this->option('stream');
+
+        if ($isStream) {
+            $logs = Cache::get('sync_logs', []);
+            $logs[] = "[" . now()->format('H:i:s') . "] " . $message;
+            Cache::put('sync_logs', $logs);
+
+            $this->info($message);
+        }
+    }
+
+    private function markFinished(): void
+    {
+        Cache::put('sync_finished', true);
+    }
 
     public function handle(SolidesService $solides, VrBeneficiosService $vr)
     {
-        DB::beginTransaction();
-        $this->info("Começando a sincronização dos dados");
-        try {
-            // cadastrar empresas
+        // Reset do estado para o front
+        Log::info('🔥 Entrou no handle() do sync:database');
 
-            $this->info("Pegando empresas");
-            $empresas = $solides->getEmpresas();
-            $this->info("Cadastrando empresas");
-            foreach($empresas as $emp){
-                Company::updateOrCreate(
-                    ['cod' => $emp['id'], 'from' => 'Solides'],
-                    [
-                        'name' => $emp['socialReason'],
-                        'company' => $emp['descriptionName'],
-                        'cnpj' => $emp['cnpj'],
-                        // 'user_id' => Auth::user()->id,
-                    ]
-                );
+        $isStream = $this->option('stream');
+
+        if ($isStream) {
+            Cache::put('sync_progress', 0);
+            Cache::put('sync_logs', []);
+            Cache::put('sync_eta', null);
+            Cache::put('sync_finished', false);
+        }
+
+        $this->addLog("Começando a sincronização dos dados");
+
+        $startTime = microtime(true);
+
+        // Pesos das etapas
+        $weightCompanies  = 5;   // 5%
+        $weightDates      = 5;   // 5%
+        $weightEmployees  = 70;  // 70%
+        $weightHolidays   = 10;  // 10%
+        $weightAbsences   = 10;  // 10%
+        $baseProgress     = 0;   // acumula o que já foi feito antes da etapa atual
+
+        // Função para calcular ETA e atualizar progresso
+        $updateStepProgress = function (float $currentProgress) use ($startTime) {
+            $etaString = null;
+
+            if ($currentProgress > 0) {
+                $elapsed = microtime(true) - $startTime; // segundos
+                // Estimativa do tempo total usando regra de 3
+                $totalEstimated = $elapsed * (100 / $currentProgress);
+                $remaining = max(0, $totalEstimated - $elapsed);
+                $etaString = gmdate("i:s", (int) round($remaining));
             }
 
-            // Períodos de referência
-            $inicio = Carbon::now()->subMonth()->day(16)->startOfDay();
-            $fim = Carbon::now()->day(15)->endOfDay();
+            $this->updateProgress($currentProgress, $etaString);
+        };
 
-            // Dias úteis de 16/mês atual até 15/mês seguinte
+        try {
+            /* ------------------------------------------
+             * ETAPA 1 — EMPRESAS
+             * ------------------------------------------ */
+            $this->addLog("Pegando empresas");
+            $empresas = $solides->getEmpresas();
+
+            $this->addLog("Cadastrando empresas");
+
+            // Transação apenas desta etapa (pequena)
+            DB::transaction(function () use ($empresas) {
+                foreach ($empresas as $emp) {
+                    Company::updateOrCreate(
+                        ['cod' => $emp['id'], 'from' => 'Solides'],
+                        [
+                            'name' => $emp['socialReason'],
+                            'company' => $emp['descriptionName'],
+                            'cnpj' => $emp['cnpj'],
+                        ]
+                    );
+                }
+            });
+
+            $baseProgress += $weightCompanies;
+            $updateStepProgress($baseProgress);
+
+            /* ------------------------------------------
+             * ETAPA 2 — CALCULO DAS DATAS
+             * ------------------------------------------ */
+            $this->addLog("Configurando datas de referência");
+
+            $today = Carbon::today();
+            $base  = $today->day >= 16 ? $today->copy() : $today->subMonth()->copy();
+
+            $inicio = $base->copy()->subMonth()->day(16)->startOfDay();
+            $fim    = $base->copy()->day(15)->endOfDay();
+
             $diasUteis = calcularDiasUteisComSabado(
-                Carbon::now()->day(16),
-                Carbon::now()->addMonth()->day(15)
+                $base->copy()->day(16),
+                $base->copy()->addMonth()->day(15)
             );
 
-            // pela forma atual do codigo, vamos ter que calcular quantos dias uteis teve no mes anterior
-            // e verificar quantos desses dias o funcionario trabalhou.
             $diasUteisMesPassado = calcularDiasUteisComSabado(
-                Carbon::now()->subMonth()->day(16),
-                Carbon::now()->day(15)
+                $base->copy()->subMonth()->day(16),
+                $base->copy()->day(15)
             );
 
-            $this->info("Pegando funcionarios");
-            $funcionarios = $solides->getFuncionariosAtivos();
+            $baseProgress += $weightDates;
+            $updateStepProgress($baseProgress);
 
-            // vamos inativar todos os funcionarios.
+            /* ------------------------------------------
+             * ETAPA 3 — FUNCIONÁRIOS (70% do progresso)
+             * ------------------------------------------ */
+            $this->addLog("Pegando funcionários");
+            $funcionarios = $solides->getFuncionariosAtivos();
+            $totalEmployees = count($funcionarios);
+
+            $this->addLog("Inativando funcionários atuais");
             Employee::where('active', true)->update(['active' => false]);
 
             $companies = Company::all()
-            ->keyBy('cod')
-            ->map(fn($item) => [
-                'cnpj' => $item->cnpj,
-                'id' => $item->id,
-            ])
-            ->toArray();
+                ->keyBy('cod')
+                ->map(fn($item) => [
+                    'cnpj' => $item->cnpj,
+                    'id'   => $item->id,
+                ])
+                ->toArray();
 
-            $this->info("Cadastrando funcionarios");
-            $this->info("Numero de dados a serem sincronizados: ".sizeof($funcionarios));
+            $this->addLog("Cadastrando funcionários");
+            $this->addLog("Número de dados a serem sincronizados: " . $totalEmployees);
+
             $inativados = 0;
+            $processedEmployees = 0;
+
             foreach ($funcionarios as $f) {
-                // ignorar os que foram demitidos.
-                if($f['fired'] == true){
+                $processedEmployees++;
+
+                if ($f['fired'] == true) {
                     $inativados++;
+                    // Atualiza progresso proporcional mesmo pulando
+                    if ($totalEmployees > 0) {
+                        $employeesProgress = ($processedEmployees / $totalEmployees) * $weightEmployees;
+                        $updateStepProgress($baseProgress + $employeesProgress);
+                    }
                     continue;
                 }
 
-                // Cadastra ou atualiza funcionário
-                $birthday = isset($f['birthDate']) ? Carbon::createFromTimestampMs($f['birthDate']) : null;
+                // === LÓGICA ORIGINAL DO FUNCIONÁRIO ===
+
+                $birthday      = isset($f['birthDate']) ? Carbon::createFromTimestampMs($f['birthDate']) : null;
+                $admissionDate = isset($f['admissionDate']) ? Carbon::createFromTimestampMs($f['admissionDate']) : null;
+
                 $employee = Employee::updateOrCreate(
                     ['cpf' => preg_replace('/\D/', '', $f['cpf'])],
                     [
-                        'active' => true,
-                        'full_name' => $f['name'],
-                        'email' => $f['email'] ?? null,
-                        'rg' => $f['rg'] ?? null,
-                        'birthday' => $birthday ? $birthday->toDateTimeString() : null,
-                        'cod_solides' => $f['id'],
-                        'address' => null,
-                        'company_id' => $companies[$f['company']['id']]['id'],
-                        // 'user_id' => 1,
+                        'active'        => true,
+                        'full_name'     => $f['name'],
+                        'email'         => $f['email'] ?? null,
+                        'rg'            => $f['rg'] ?? null,
+                        'birthday'      => $birthday ? $birthday->toDateTimeString() : null,
+                        'cod_solides'   => $f['id'],
+                        'address'       => null,
+                        'company_id'    => $companies[$f['company']['id']]['id'] ?? null,
+                        'admission_date'=> $admissionDate,
                     ]
                 );
 
@@ -115,26 +219,28 @@ class SyncDatabase extends Command
                 $diasTrabalhadosMesPassado = $diasUteisMesPassado;
                 $diasTrabalhados = $diasUteis;
 
-                // verificamos pois pode acontecer de um funcionario ter sido contratado apos a data de verificação.
-                if($f['admissionDate'] < $fim->valueOf()){
+                if ($f['admissionDate'] < $fim->valueOf()) {
                     $diasUteisMesPassadoCalc = $diasUteisMesPassado;
 
-                    // se ele tiver sido cadastrado entre as datas, vamos pegar a quantidade de dias trabalhados esperado para ele para fazermos o calculo.
-                    if($f['admissionDate'] > $inicio->valueOf()){
+                    if ($f['admissionDate'] > $inicio->valueOf()) {
                         $admissionDate = Carbon::createFromTimestampMs($f['admissionDate']);
                         $diasUteisMesPassadoCalc = calcularDiasUteisComSabado(
                             $admissionDate,
-                            Carbon::now()->day(15)
+                            $base->copy()->day(15)
                         );
                     }
 
                     $array_dias_trabalhados = $solides->getDiasTrabalhados($f['id'], $inicio->valueOf(), $fim->valueOf());
 
                     if (empty($array_dias_trabalhados)) {
-                        // Nenhum ponto → inativa
                         $inativados++;
-                        $this->info("Funcionario inativado por nao ter trabalhado no ultimo mes, funcionario: ".$employee->full_name."| ".$f['id']." | data de admissao: ".Carbon::createFromTimestampMs($f['admissionDate']));
+                        $this->addLog("Inativado por não trabalhar no último mês: " . $employee->full_name);
                         $employee->update(['active' => false]);
+
+                        if ($totalEmployees > 0) {
+                            $employeesProgress = ($processedEmployees / $totalEmployees) * $weightEmployees;
+                            $updateStepProgress($baseProgress + $employeesProgress);
+                        }
                         continue;
                     }
 
@@ -142,17 +248,16 @@ class SyncDatabase extends Command
                     $lastDate = null;
                     $diasTrabalhadosMesPassado = 0;
 
-                    foreach($array_dias_trabalhados as $index => $data){
+                    foreach ($array_dias_trabalhados as $index => $data) {
                         $currentDate = Carbon::createFromTimestampMs($data['date']);
                         $diferenca = $currentDate->diffInDays($lastDate);
 
-                        if($diferenca == 0)
+                        if ($diferenca == 0)
                             continue;
 
                         $diasTrabalhadosMesPassado++;
 
                         if ($lastDate && $diferenca > 7) {
-                            // gap maior que 7 dias → inativa
                             $isInactive = true;
                             break;
                         }
@@ -160,105 +265,181 @@ class SyncDatabase extends Command
                         $lastDate = $currentDate;
                     }
 
-                    $DiferençaDeDiasMesPassado = $diasUteisMesPassadoCalc - $diasTrabalhadosMesPassado;
-                    $diasTrabalhados = $diasUteis - $DiferençaDeDiasMesPassado;
+                    $diferencaDiasMesPassado = $diasUteisMesPassadoCalc - $diasTrabalhadosMesPassado;
+                    $diasTrabalhados = $diasUteis - $diferencaDiasMesPassado;
 
-                    // lembrar de perguntar ao pedro
-                    if($diasTrabalhados > $diasUteis) // caso aconteça de dias trabalhados serem maior que dias uteis, entao a gente seta igual dias uteis.
+                    if ($diasTrabalhados > $diasUteis)
                         $diasTrabalhados = $diasUteis;
 
-                    if ($isInactive || $diasTrabalhados < ($diasUteis/2)) {
+                    if ($isInactive || $diasTrabalhados < ($diasUteis / 2)) {
                         $employee->update(['active' => false]);
                         $inativados++;
-                        $this->info("Funcionario inativado por ter faltado mais de 7 dias direto, funcionario: ".$employee->full_name." | ".$f['id']." | data de admissao: ".Carbon::createFromTimestampMs($f['admissionDate']));
-                        Log::info("🚫 {$employee->full_name} inativado (sem registro > 7 dias)");
+                        $this->addLog("Inativado por faltas: " . $employee->full_name);
+
+                        if ($totalEmployees > 0) {
+                            $employeesProgress = ($processedEmployees / $totalEmployees) * $weightEmployees;
+                            $updateStepProgress($baseProgress + $employeesProgress);
+                        }
                         continue;
                     } else {
                         $employee->update(['active' => true]);
                     }
                 }
 
-                // $diasTrabalhados = $diasUteis - ($faltas + $ferias);
-
                 $EmployeesBenefits = EmployeesBenefits::where('employee_id', $employee->id)->get();
                 $EmployeesBenefitsMonthly = [];
 
-                // calcular valor total VR
-                foreach($EmployeesBenefits as $empb){
+                foreach ($EmployeesBenefits as $empb) {
                     $valueBenefit = $diasTrabalhados * $empb['qtd'] * $empb['value'];
-                    $EmployeesBenefitsMonthly[] = [
-                        'employee_benefit_id' => $empb['id'],
-                        'value' => $empb['value'],
-                        'qtd' => $empb['qtd'],
-                        'work_days' => $diasTrabalhados,
-                        'total_value' => $valueBenefit,
-                        'paid' => true,
-                        'date' => Carbon::now()->day(1)->format('Y-m-d'),
-                    ];
+                    // $EmployeesBenefitsMonthly[] = [
+                    //     'employee_benefit_id' => $empb['id'],
+                    //     'value'               => $empb['value'],
+                    //     'qtd'                 => $empb['qtd'],
+                    //     'work_days'           => $diasTrabalhados,
+                    //     'total_value'         => $valueBenefit,
+                    //     'paid'                => true,
+                    //     'date'                => $base->copy()->day(1)->format('Y-m-d'),
+                    // ];
+
+                    EmployeesBenefitsMonthly::updateOrCreate(
+                        [
+                            'employee_benefit_id' => $empb['id'],
+                            'date' => $base->copy()->day(1)->format('Y-m-d'),
+                        ],
+                        [
+                            'value' => $empb['value'],
+                            'qtd' => $empb['qtd'],
+                            'work_days' => $diasTrabalhados,
+                            'total_value' => $valueBenefit,
+                            'paid' => true,
+                        ]
+                    );
                 }
 
-                // Inserindo na tabela de beneficios para termos um controle melhor dos dados que foram usados.
-                EmployeesBenefitsMonthly::upsert(
-                    $EmployeesBenefitsMonthly,  // array de registros
-                    ['employee_benefit_id', 'date'], // campos únicos que determinam se atualiza ou cria
-                    ['value', 'qtd', 'work_days', 'total_value', 'paid'] // campos que serão atualizados caso exista
-                );
+                // EmployeesBenefitsMonthly::upsert(
+                //     $EmployeesBenefitsMonthly,
+                //     ['employee_benefit_id', 'date'],
+                //     ['value', 'qtd', 'work_days', 'total_value', 'paid']
+                // );
 
-                // Dias úteis registrados esse mes
                 Workday::updateOrCreate([
                     'employee_id' => $employee->id,
-                    'date' => Carbon::now()->day(1)->format('Y-m-d'),
+                    'date'        => $base->copy()->addMonth()->day(1)->format('Y-m-d'),
                 ], [
                     'business_days' => $diasUteis,
-                    'calc_days' => $diasTrabalhados,
-                    'start_date' => Carbon::now()->day(16)->format('Y-m-d'),
-                    'end_date' => Carbon::now()->addMonth()->day(15)->format('Y-m-d')
+                    'calc_days'     => $diasTrabalhados,
+                    'worked_days'   => $diasTrabalhadosMesPassado,
+                    'start_date'    => $inicio->format('Y-m-d'),
+                    'end_date'      => $fim->format('Y-m-d')
                 ]);
 
-                // // Dias úteis registrados mes passado
-                // Workday::updateOrCreate([
-                //     'employee_id' => $employee->id,
-                //     'date' => Carbon::now()->subMonth()->day(1)->format('Y-m-d'),
-                // ], [
-                //     'business_days' => $diasUteisMesPassado,
-                //     'calc_days' => $diasTrabalhadosMesPassado,
-                // ]);
-            }
-
-            $this->info("Pegando ferias da api da tangeriono");
-            $authToken = $solides->apiTangerinoAuth();
-            $array_holidays = $solides->getHolidays($authToken);
-            if($array_holidays != []){
-                $holidays = $array_holidays['list'];
-
-                $employees = Employee::pluck('id', 'email')->toArray();
-
-                for($i = 1; $i <= $array_holidays['totalPages']; $i++){
-                    foreach($holidays as $holiday){
-                        $employee_id = $employees[$holiday['employee']['email']];
-                        Holiday::updateOrCreate([
-                            'employee_id' => $employee_id,
-                            'start_date' => $holiday['startDate'],
-                            'end_date' => $holiday['endDate'],
-                        ]);
-                    }
-
-                    if($i == $array_holidays['totalPages'])
-                        break;
-
-                    $holidays = $solides->getHolidays($authToken, $i+1)['list'];
+                // Atualiza progresso proporcional dos funcionários
+                if ($totalEmployees > 0) {
+                    $employeesProgress = ($processedEmployees / $totalEmployees) * $weightEmployees;
+                    $updateStepProgress($baseProgress + $employeesProgress);
                 }
             }
 
-            DB::commit();
-            $this->info("Dados sincronizados");
-            $this->info('Numero de funcionarios inativados/ignorados: '.$inativados);
+            // Finaliza etapa de funcionários
+            $baseProgress += $weightEmployees;
+            $updateStepProgress($baseProgress);
 
-            // return response()->json(['Success' => 'Excel gerado!'], 200);
+            /* ------------------------------------------
+             * ETAPA 4 — FÉRIAS
+             * ------------------------------------------ */
+            $this->addLog("Pegando férias da API");
+            $authToken = $solides->apiTangerinoAuth();
+            $array_holidays = $solides->getHolidays($authToken);
+            $employeesMap = Employee::pluck('id', 'email')->toArray();
+
+            if ($array_holidays != []) {
+                $holidays = $array_holidays['list'];
+
+                for ($i = 1; $i <= $array_holidays['totalPages']; $i++) {
+
+                    // Transação pequena por página de férias
+                    DB::transaction(function () use ($holidays, $employeesMap) {
+                        foreach ($holidays as $holiday) {
+                            if (isset($employeesMap[$holiday['employee']['email']])) {
+                                $employee_id = $employeesMap[$holiday['employee']['email']];
+                                Holiday::updateOrCreate([
+                                    'employee_id' => $employee_id,
+                                    'start_date'  => $holiday['startDate'],
+                                    'end_date'    => $holiday['endDate'],
+                                ]);
+                            }
+                        }
+                    });
+
+                    if ($i == $array_holidays['totalPages']) {
+                        break;
+                    }
+
+                    $holidays = $solides->getHolidays($authToken, $i + 1)['list'];
+                }
+            }
+
+            $baseProgress += $weightHolidays;
+            $updateStepProgress($baseProgress);
+
+            /* ------------------------------------------
+             * ETAPA 5 — AUSÊNCIAS
+             * ------------------------------------------ */
+            $this->addLog("Pegando ausências futuras API da Tangerino");
+            $lastUpdate = $base->copy()->subMonth(6)->startOfDay()->valueOf();
+            $array_absenteeism = $solides->getAbsenteeism($lastUpdate);
+
+            if ($array_absenteeism != []) {
+                $ausencias = Absenteeism::pluck('id', 'solides_id')->toArray();
+                $absenteeisms = $array_absenteeism['content'];
+
+                for ($i = 1; $i <= $array_absenteeism['totalPages']; $i++) {
+                    $this->addLog("Ausências página: " . $i);
+
+                    DB::transaction(function () use ($absenteeisms, $ausencias, $employeesMap) {
+                        foreach ($absenteeisms as $ab) {
+                            if (isset($ausencias[$ab['id']])) {
+                                continue;
+                            }
+
+                            if (isset($employeesMap[$ab['employeeDTO']['email']])) {
+                                $employee_id = $employeesMap[$ab['employeeDTO']['email']];
+                                Absenteeism::updateOrCreate([
+                                    'solides_id' => $ab['id'],
+                                ], [
+                                    'employee_id' => $employee_id,
+                                    'start_date'  => Carbon::createFromTimestampMs($ab['startDate']),
+                                    'end_date'    => Carbon::createFromTimestampMs($ab['endDate']),
+                                    'reason'      => $ab['adjustmentReasonDTO']['description'],
+                                ]);
+                            }
+                        }
+                    });
+
+                    if ($i == $array_absenteeism['totalPages']) {
+                        break;
+                    }
+
+                    $absenteeisms = $solides->getAbsenteeism($lastUpdate, $i + 1)['content'];
+                }
+            }
+
+            $baseProgress += $weightAbsences;
+            $updateStepProgress($baseProgress);
+
+            /* ------------------------------------------
+             * FINALIZAÇÃO
+             * ------------------------------------------ */
+            $this->addLog("Dados sincronizados com sucesso.");
+            $this->addLog('Número de funcionários inativados: ' . $inativados);
+
+            $this->updateProgress(100, "00:00");
+            $this->markFinished();
+
         } catch (\Throwable $e) {
-            DB::rollBack();
-            $this->info("erro ao sincronizar dados");
-            // return response()->json(['error' => $e->getMessage()], 500);
+            $this->addLog("❌ Erro ao sincronizar: " . $e->getMessage());
+            Log::error('Erro no SyncDatabase: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            $this->markFinished();
         }
     }
 }

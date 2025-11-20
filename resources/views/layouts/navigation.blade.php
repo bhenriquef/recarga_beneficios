@@ -17,26 +17,50 @@
                     </x-nav-link>
                 </div>
 
-                <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
-                    <x-nav-link :href="route('companies.index')" :active="request()->routeIs('companies.*')">
+                <!-- Submenu: Administração -->
+                <div x-data="{ openAdmin: false }" class="hidden sm:flex sm:-my-px sm:ms-10 items-center relative">
+                    <button
+                        @click="openAdmin = !openAdmin"
+                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 focus:outline-none transition"
+                    >
+                        Administração
+                        <svg class="ml-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M5.25 7.5l4.5 4.5 4.5-4.5" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+
+                    <!-- Dropdown -->
+                    <div
+                        x-show="openAdmin"
+                        @click.away="openAdmin = false"
+                        x-transition
+                        class="absolute top-10 left-0 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20"
+                    >
+                        <a href="{{ route('companies.index') }}"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('companies.*') ? 'bg-gray-100 font-semibold' : '' }}">
                         Empresas
-                    </x-nav-link>
+                        </a>
+                        <a href="{{ route('employees.index') }}"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('employees.*') ? 'bg-gray-100 font-semibold' : '' }}">
+                        Funcionários
+                        </a>
+                        <a href="{{ route('benefits.index') }}"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('benefits.*') ? 'bg-gray-100 font-semibold' : '' }}">
+                        Benefícios
+                        </a>
+                        <a href="{{ route('users.index') }}"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('users.*') ? 'bg-gray-100 font-semibold' : '' }}">
+                        Usuários
+                        </a>
+                    </div>
                 </div>
+
                 <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
-                    <x-nav-link :href="route('employees.index')" :active="request()->routeIs('employees.*')">
-                        Funcionarios
+                    <x-nav-link :href="route('excelCustomizado')" :active="request()->routeIs('excelCustomizado')">
+                        {{ __('Excel customizado') }}
                     </x-nav-link>
                 </div>
-                <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
-                    <x-nav-link :href="route('benefits.index')" :active="request()->routeIs('benefits.*')">
-                        Beneficios
-                    </x-nav-link>
-                </div>
-                <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
-                    <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
-                        Usuarios
-                    </x-nav-link>
-                </div>
+
                 <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
                     <div x-data="{ openImport: false }" class="relative">
                         <button
@@ -74,6 +98,52 @@
                             </div>
                         </div>
                     </div>
+                    <div x-data="syncDatabase()" class="ml-4 relative">
+                    <button
+                        @click="startSync"
+                        class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md
+                            text-white bg-green-600 hover:bg-green-700 focus:outline-none"
+                    >
+                        Sincronizar Banco
+                    </button>
+
+                    <!-- Modal de progresso -->
+                    <div
+                        x-show="open"
+                        x-cloak
+                        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        style="background: rgba(0,0,0,0.4);"
+                    >
+                        <div class="bg-white rounded-lg w-full max-w-xl p-6 shadow-lg">
+                            <h3 class="text-lg font-semibold mb-4">Sincronizando banco de dados</h3>
+
+                            <!-- Barra de progresso -->
+                            <div class="w-full bg-gray-200 rounded-full h-4 mb-4">
+                                <div class="bg-green-600 h-4 rounded-full" :style="`width: ${progress}%`"></div>
+                            </div>
+
+                            <p class="text-sm font-medium mb-2">Progresso: <span x-text="progress"></span>%</p>
+
+                            <!-- Logs -->
+                            <div class="bg-gray-100 p-3 rounded h-48 overflow-auto text-sm font-mono border">
+                                <template x-for="line in logs">
+                                    <div x-text="line"></div>
+                                </template>
+                            </div>
+
+                            <div class="mt-4 text-right">
+                                <button
+                                    @click="open = false"
+                                    class="px-4 py-2 rounded border bg-gray-200 hover:bg-gray-300"
+                                    :disabled="progress < 100"
+                                >
+                                    Fechar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 </div>
                 <x-export-modal />
             </div>
@@ -158,3 +228,52 @@
         </div>
     </div>
 </nav>
+<script>
+function syncDatabase() {
+    return {
+        open: false,
+        progress: 0,
+        logs: [],
+
+        startSync() {
+            this.open = true;
+            this.progress = 0;
+            this.logs = [];
+
+            axios.post('{{ route('database.sync') }}')
+                .then(() => {
+                    this.listenForUpdates();
+                })
+                .catch(() => {
+                    this.logs.push('❌ Erro ao iniciar sincronização.');
+                });
+        },
+
+        listenForUpdates() {
+            // EventSource mantém conexão aberta com o backend
+            const es = new EventSource('/sync-database-stream');
+
+            es.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+
+                if (data.progress !== undefined) {
+                    this.progress = data.progress;
+                }
+
+                if (data.log) {
+                    this.logs.push(data.log);
+                }
+
+                if (data.eta) {
+                    this.eta = data.eta;
+                }
+
+                if (data.finished) {
+                    es.close();
+                    this.logs.push('✔ Finalizado!');
+                }
+            };
+        }
+    };
+}
+</script>
