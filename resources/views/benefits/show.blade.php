@@ -53,12 +53,65 @@
                 </div>
             </div>
 
+            {{-- 🔎 Filtro de Período --}}
+            <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <p class="text-sm text-gray-600">
+                    Período analisado:
+                    <strong>{{ $periodLabel }}</strong>
+                    <span class="text-gray-400">
+                        (de {{ \Carbon\Carbon::parse($startDateStr)->format('d/m/Y') }}
+                        a {{ \Carbon\Carbon::parse($endDateStr)->format('d/m/Y') }})
+                    </span>
+                </p>
+
+                <form method="GET" action="{{ route('benefits.show', $benefit->id) }}" class="flex flex-wrap items-center gap-2">
+                    <label class="text-xs text-gray-500 uppercase">Início</label>
+                    <input
+                        type="month"
+                        name="start"
+                        value="{{ $periodStartMonthValue }}"
+                        class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+
+                    <span class="text-xs text-gray-500 uppercase">Fim</span>
+                    <input
+                        type="month"
+                        name="end"
+                        value="{{ $periodEndMonthValue }}"
+                        class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+
+                    <button
+                        type="submit"
+                        class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                        Aplicar
+                    </button>
+                </form>
+            </div>
+
             {{-- 🧾 Cards resumo --}}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <x-stat-card label="Total (período)" :value="'R$ '.number_format($totalBeneficioPeriodo, 2, ',', '.')" color="emerald" />
-                <x-stat-card label="Média/Funcionário" :value="'R$ '.number_format($mediaPorFuncionario, 2, ',', '.')" color="indigo" />
-                <x-stat-card label="Custo Médio/Dia" :value="'R$ '.number_format($custoMedioPorDia, 2, ',', '.')" color="orange" />
-                <x-stat-card label="% no Total de VT" :value="$participacaoNoTotal.'%'" color="rose" />
+                <x-stat-card
+                    label="Total (período)"
+                    :value="'R$ '.number_format($totalBeneficioPeriodo, 2, ',', '.')"
+                    color="emerald"
+                />
+                <x-stat-card
+                    label="Média/Funcionário"
+                    :value="'R$ '.number_format($mediaPorFuncionario, 2, ',', '.')"
+                    color="indigo"
+                />
+                <x-stat-card
+                    label="Custo Médio/Dia"
+                    :value="'R$ '.number_format($custoMedioPorDia, 2, ',', '.')"
+                    color="orange"
+                />
+                <x-stat-card
+                    label="% no Total de VT"
+                    :value="$participacaoNoTotal.'%'"
+                    color="rose"
+                />
             </div>
 
             {{-- 📅 Histórico Mensal (com filtro + paginação) --}}
@@ -67,7 +120,7 @@
             <div class="bg-white rounded-lg shadow p-4 mb-8">
                 <div class="flex items-center justify-between mb-3">
                     <p class="text-sm text-gray-600">
-                        Evolução mensal do VT
+                        Evolução mensal do VT no período selecionado.
                     </p>
 
                     @if($historicoTabela->isNotEmpty())
@@ -81,7 +134,9 @@
                 </div>
 
                 @if($historicoTabela->isEmpty())
-                    <p class="text-sm text-gray-500">Nenhum histórico encontrado para este VT.</p>
+                    <p class="text-sm text-gray-500">
+                        Nenhum histórico encontrado para este VT no período.
+                    </p>
                 @else
                     <div class="overflow-x-auto mb-3">
                         <table id="table-historico" class="min-w-full text-sm">
@@ -129,15 +184,15 @@
                 @endif
             </div>
 
-                        {{-- 👥 Funcionários que recebem este benefício --}}
+            {{-- 👥 Funcionários que recebem este benefício --}}
             <h3 class="text-lg font-semibold text-gray-700 mb-3">
-                Funcionários que possuem este VT
+                Funcionários que possuem este VT (no período)
             </h3>
 
             <div class="bg-white rounded-lg shadow p-4 mb-8">
                 <div class="flex items-center justify-between mb-3">
                     <p class="text-sm text-gray-600">
-                        Total acumulado para cada funcionário em todo o histórico disponível.
+                        Total acumulado para cada funcionário no período selecionado.
                     </p>
 
                     @if($funcionariosBeneficio->isNotEmpty())
@@ -152,7 +207,7 @@
 
                 @if($funcionariosBeneficio->isEmpty())
                     <p class="text-sm text-gray-500">
-                        Nenhum funcionário recebeu este VT até o momento.
+                        Nenhum funcionário recebeu este VT no período selecionado.
                     </p>
                 @else
                     <div class="overflow-x-auto mb-3">
@@ -209,7 +264,7 @@
                 @endif
             </div>
 
-
+            {{-- 📊 Gráficos --}}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
                 <div class="bg-white p-4 rounded-lg shadow">
                     <canvas id="chartEvolucao" height="160"></canvas>
@@ -413,7 +468,6 @@
                 pageSize: 10,
             });
         });
-
     </script>
 
     {{-- ====== Chart.js ====== --}}
@@ -435,13 +489,39 @@
             data: {
                 labels: meses,
                 datasets: [
-                    { label: 'Benefício (R$)', data: serieBeneficio, borderColor: '#10B981', backgroundColor: 'rgba(16,185,129,0.2)', tension: 0.3, fill: true },
-                    { label: 'iFood (R$)',     data: serieIfood,     borderColor: '#F97316', backgroundColor: 'rgba(249,115,22,0.2)', tension: 0.3, fill: true },
-                    { label: 'Outros (R$)',    data: serieOutros,    borderColor: '#94A3B8', backgroundColor: 'rgba(148,163,184,0.2)', tension: 0.3, fill: true },
+                    {
+                        label: 'Benefício (R$)',
+                        data: serieBeneficio,
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16,185,129,0.2)',
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'iFood (R$)',
+                        data: serieIfood,
+                        borderColor: '#F97316',
+                        backgroundColor: 'rgba(249,115,22,0.2)',
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Outros (R$)',
+                        data: serieOutros,
+                        borderColor: '#94A3B8',
+                        backgroundColor: 'rgba(148,163,184,0.2)',
+                        tension: 0.3,
+                        fill: true
+                    },
                 ]
             },
             options: {
-                plugins: { title: { display: true, text: 'Evolução Mensal — VT x VR x Outros' } },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Evolução Mensal — VT x VR x Outros'
+                    }
+                },
                 scales: { y: { beginAtZero: true } }
             }
         });
@@ -450,11 +530,15 @@
         const totalBeneficio = serieBeneficio.reduce((a,b)=>a+b,0);
         const totalIfood     = serieIfood.reduce((a,b)=>a+b,0);
         const totalOutros    = serieOutros.reduce((a,b)=>a+b,0);
+
         new Chart(document.getElementById('chartDistribuicaoPeriodo').getContext('2d'), {
             type: 'doughnut',
             data: {
                 labels: ['Este VT', 'VR', 'Outros VR'],
-                datasets: [{ data: [totalBeneficio, totalIfood, totalOutros], backgroundColor: ['#10B981', '#F97316', '#94A3B8'] }]
+                datasets: [{
+                    data: [totalBeneficio, totalIfood, totalOutros],
+                    backgroundColor: ['#10B981', '#F97316', '#94A3B8']
+                }]
             },
             options: {
                 plugins: {
@@ -469,10 +553,19 @@
             type: 'bar',
             data: {
                 labels: meses,
-                datasets: [{ label: 'Média de Dias Trabalhados', data: serieDias, backgroundColor: 'rgba(59,130,246,0.75)' }]
+                datasets: [{
+                    label: 'Média de Dias Trabalhados',
+                    data: serieDias,
+                    backgroundColor: 'rgba(59,130,246,0.75)'
+                }]
             },
             options: {
-                plugins: { title: { display: true, text: 'Média de Dias Trabalhados (somente beneficiários do mês)' } },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Média de Dias Trabalhados (somente beneficiários do mês)'
+                    }
+                },
                 scales: { y: { beginAtZero: true } }
             }
         });
@@ -481,16 +574,23 @@
         new Chart(document.getElementById('chartTopFuncionarios').getContext('2d'), {
             type: 'bar',
             data: {
-                labels: topFuncionarios.map(f => f.full_name.length > 20 ? f.full_name.substring(0, 20) + '…' : f.full_name),
+                labels: topFuncionarios.map(f =>
+                    f.full_name.length > 20 ? f.full_name.substring(0, 20) + '…' : f.full_name
+                ),
                 datasets: [{
                     label: 'Total Recebido (R$)',
-                    data: topFuncionarios.map(f => Number(f.total_recebido)||0),
+                    data: topFuncionarios.map(f => Number(f.total_recebido) || 0),
                     backgroundColor: 'rgba(99,102,241,0.85)'
                 }]
             },
             options: {
                 indexAxis: 'y',
-                plugins: { title: { display: true, text: 'Top 10 Funcionários — Total Recebido no Período' } },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Top 10 Funcionários — Total Recebido no Período'
+                    }
+                },
                 scales: { x: { beginAtZero: true } }
             }
         });

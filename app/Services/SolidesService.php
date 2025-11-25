@@ -19,6 +19,9 @@ class SolidesService
     protected function client()
     {
         return Http::withoutVerifying() // remova isso depois se resolver o SSL
+            ->timeout(300)
+            ->connectTimeout(30)
+            ->retry(3, 2000)
             ->withHeaders([
                 'Authorization' => $this->token,
                 'Accept' => 'application/json',

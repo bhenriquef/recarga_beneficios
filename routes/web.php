@@ -8,6 +8,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\BalanceManagementImportController;
 use Illuminate\Support\Facades\Cache;
 
 Route::get('/', function () {
@@ -41,6 +42,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/exports/download/{type}', [ExportController::class, 'download'])->name('exports.download');
     Route::get('/excel_customizado', [ExportController::class, 'indexCustomExport'])->name('excelCustomizado');
     Route::get('/exports/generate_custom_ifood', [ExportController::class, 'generateCustomIfoodExcel'])->name('exports.generateCustomIfoodExcel');
+
+    Route::get('/balance-management/import', [BalanceManagementImportController::class, 'index'])->name('balance.import');
+    Route::post('/balance-management/import', [BalanceManagementImportController::class, 'store'])->name('balance.import.store');
 
     Route::post('/sync-database', [ImportController::class, 'runSyncDatabase'])->name('database.sync');
     Route::get('/sync-database-stream', function () {

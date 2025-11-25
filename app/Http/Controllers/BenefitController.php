@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\DB;
 use App\Models\Benefit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class BenefitController extends Controller
 {
@@ -50,20 +51,75 @@ class BenefitController extends Controller
         ));
     }
 
-    public function show($benefitId)
+    public function show(Request $request, $benefitId)
     {
         $benefit = Benefit::findOrFail($benefitId);
 
+        /** -------------------------------------------------
+         * 0) Descobrir range de datas disponível para o benefício
+         * ------------------------------------------------- */
+        $range = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->where('eb.benefits_id', $benefitId)
+            ->selectRaw('MIN(m.date) as min_date, MAX(m.date) as max_date')
+            ->first();
+
+        $minDate = $range && $range->min_date ? Carbon::parse($range->min_date)->startOfMonth() : Carbon::today()->subYear();
+        $maxDate = $range && $range->max_date ? Carbon::parse($range->max_date)->endOfMonth()   : Carbon::today()->endOfMonth();
+
+        // Valores vindos da UI: YYYY-MM
+        $startInput = $request->query('start');
+        $endInput   = $request->query('end');
+
+        if ($startInput) {
+            try {
+                $start = Carbon::createFromFormat('Y-m', $startInput)->startOfMonth();
+            } catch (\Exception $e) {
+                $start = $minDate->copy();
+            }
+        } else {
+            // Padrão: últimos 6 meses (ou desde o início se tiver menos)
+            $start = $maxDate->copy()->subMonths(5)->startOfMonth();
+        }
+
+        if ($endInput) {
+            try {
+                $end = Carbon::createFromFormat('Y-m', $endInput)->endOfMonth();
+            } catch (\Exception $e) {
+                $end = $maxDate->copy();
+            }
+        } else {
+            $end = $maxDate->copy();
+        }
+
+        // Garante que está dentro do range de dados
+        if ($start->lt($minDate)) {
+            $start = $minDate->copy();
+        }
+        if ($end->gt($maxDate)) {
+            $end = $maxDate->copy();
+        }
+
+        // Se por algum motivo start > end, inverte
+        if ($start->gt($end)) {
+            [$start, $end] = [$end->copy(), $start->copy()];
+        }
+
+        $startDateStr = $start->toDateString();
+        $endDateStr   = $end->toDateString();
+
+        $periodLabel            = $start->format('m/Y') . ' até ' . $end->format('m/Y');
+        $periodStartMonthValue  = $start->format('Y-m');
+        $periodEndMonthValue    = $end->format('Y-m');
+
         /**
          * 1) Séries mensais básicas (tudo ASC para gráficos)
-         * - total do benefício específico (históricoMensal)
-         * - total de TODOS os benefícios (todosBeneficiosMensal)
-         * - total iFood (ifoodMensal)
          */
         $historicoMensal = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('employees as e', 'e.id', '=', 'eb.employee_id')
             ->where('eb.benefits_id', $benefitId)
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
             ->selectRaw("
                 DATE_FORMAT(m.date, '%m/%Y') as mes,
                 CAST(SUM(m.total_value) AS DECIMAL(12,2)) as total_beneficio,
@@ -76,6 +132,7 @@ class BenefitController extends Controller
 
         $todosBeneficiosMensal = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
             ->selectRaw("
                 DATE_FORMAT(m.date, '%m/%Y') as mes,
                 CAST(SUM(m.total_value) AS DECIMAL(12,2)) as total_beneficios
@@ -85,6 +142,7 @@ class BenefitController extends Controller
             ->get();
 
         $ifoodMensal = DB::table('workdays as w')
+            ->whereBetween('w.date', [$startDateStr, $endDateStr])
             ->selectRaw("
                 DATE_FORMAT(w.date, '%m/%Y') as mes,
                 CAST(SUM(w.calc_days * 10) AS DECIMAL(12,2)) as total_ifood
@@ -95,15 +153,15 @@ class BenefitController extends Controller
 
         /**
          * 2) Média de dias trabalhados dos beneficiários (por mês)
-         *    (somente de quem recebeu o benefício naquele mês)
          */
         $diasTrabalhadosMensal = DB::table('employees_benefits as eb')
             ->join('employees_benefits_monthly as m', 'm.employee_benefit_id', '=', 'eb.id')
             ->join('workdays as w', function ($j) {
                 $j->on('w.employee_id', '=', 'eb.employee_id')
-                  ->whereRaw("DATE_FORMAT(w.date, '%m/%Y') = DATE_FORMAT(m.date, '%m/%Y')");
+                ->whereRaw("DATE_FORMAT(w.date, '%m/%Y') = DATE_FORMAT(m.date, '%m/%Y')");
             })
             ->where('eb.benefits_id', $benefitId)
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
             ->selectRaw("
                 DATE_FORMAT(m.date, '%m/%Y') as mes,
                 CAST(AVG(w.calc_days) AS DECIMAL(10,2)) as media_dias
@@ -155,15 +213,18 @@ class BenefitController extends Controller
         });
 
         // Tabela em DESC (mais recente primeiro)
-        $historicoTabela = $historico->sortByDesc(fn($h) => \Carbon\Carbon::createFromFormat('m/Y', $h->mes))->values();
+        $historicoTabela = $historico
+            ->sortByDesc(fn($h) => \Carbon\Carbon::createFromFormat('m/Y', $h->mes))
+            ->values();
 
         /**
-         * 3) Top 10 funcionários que mais receberam esse benefício (período)
+         * 3) Top 10 funcionários que mais receberam esse benefício NO PERÍODO
          */
         $topFuncionarios = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('employees as e', 'e.id', '=', 'eb.employee_id')
             ->where('eb.benefits_id', $benefitId)
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
             ->select(
                 'e.full_name',
                 DB::raw('SUM(m.total_value) as total_recebido'),
@@ -174,22 +235,26 @@ class BenefitController extends Controller
             ->limit(10)
             ->get();
 
+        /**
+         * 4) Funcionários que possuem este benefício NO PERÍODO
+         */
         $funcionariosBeneficio = DB::table('employees_benefits_monthly as m')
-        ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
-        ->join('employees as e', 'e.id', '=', 'eb.employee_id')
-        ->where('eb.benefits_id', $benefitId)
-        ->select(
-            'e.id',
-            'e.full_name',
-            'e.active',
-            DB::raw('SUM(m.total_value) as total_beneficio')
-        )
-        ->groupBy('e.id', 'e.full_name', 'e.active')
-        ->orderBy('e.full_name')
-        ->get();
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('employees as e', 'e.id', '=', 'eb.employee_id')
+            ->where('eb.benefits_id', $benefitId)
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
+            ->select(
+                'e.id',
+                'e.full_name',
+                'e.active',
+                DB::raw('SUM(m.total_value) as total_beneficio')
+            )
+            ->groupBy('e.id', 'e.full_name', 'e.active')
+            ->orderBy('e.full_name')
+            ->get();
 
         /**
-         * 6) Resumo (cards)
+         * 5) Resumo (cards) – sempre considerando APENAS o período filtrado
          */
         $totalBeneficioPeriodo = $historico->sum('total_beneficio');
         $mediaPorFuncionario   = $historico->avg('media_func') ?: 0;
@@ -215,8 +280,13 @@ class BenefitController extends Controller
             'totalTodosPeriodo',
             'totalOutrosPeriodo',
             'participacaoNoTotal',
-            'funcionariosBeneficio', // 👈 NOVO
+            'funcionariosBeneficio',
+            // período
+            'periodLabel',
+            'startDateStr',
+            'endDateStr',
+            'periodStartMonthValue',
+            'periodEndMonthValue',
         ));
-
     }
 }

@@ -17,43 +17,49 @@
                     </x-nav-link>
                 </div>
 
-                <!-- Submenu: Administração -->
-                <div x-data="{ openAdmin: false }" class="hidden sm:flex sm:-my-px sm:ms-10 items-center relative">
-                    <button
-                        @click="openAdmin = !openAdmin"
-                        class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 focus:outline-none transition"
-                    >
-                        Administração
-                        <svg class="ml-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M5.25 7.5l4.5 4.5 4.5-4.5" clip-rule="evenodd" />
-                        </svg>
-                    </button>
+                @if(Auth::user()?->type === 1)
+                    <!-- Submenu: Administracao -->
+                    <div x-data="{ openAdmin: false }" class="hidden sm:flex sm:-my-px sm:ms-10 items-center relative">
+                        <button
+                            @click="openAdmin = !openAdmin"
+                            class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600 focus:outline-none transition"
+                        >
+                            Administracao
+                            <svg class="ml-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5.25 7.5l4.5 4.5 4.5-4.5" clip-rule="evenodd" />
+                            </svg>
+                        </button>
 
-                    <!-- Dropdown -->
-                    <div
-                        x-show="openAdmin"
-                        @click.away="openAdmin = false"
-                        x-transition
-                        class="absolute top-10 left-0 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20"
-                    >
-                        <a href="{{ route('companies.index') }}"
-                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('companies.*') ? 'bg-gray-100 font-semibold' : '' }}">
-                        Empresas
-                        </a>
-                        <a href="{{ route('employees.index') }}"
-                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('employees.*') ? 'bg-gray-100 font-semibold' : '' }}">
-                        Funcionários
-                        </a>
-                        <a href="{{ route('benefits.index') }}"
-                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('benefits.*') ? 'bg-gray-100 font-semibold' : '' }}">
-                        Benefícios
-                        </a>
-                        <a href="{{ route('users.index') }}"
-                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('users.*') ? 'bg-gray-100 font-semibold' : '' }}">
-                        Usuários
-                        </a>
+                        <!-- Dropdown -->
+                        <div
+                            x-show="openAdmin"
+                            @click.away="openAdmin = false"
+                            x-transition
+                            class="absolute top-10 left-0 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20"
+                        >
+                            <a href="{{ route('companies.index') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('companies.*') ? 'bg-gray-100 font-semibold' : '' }}">
+                            Empresas
+                            </a>
+                            <a href="{{ route('employees.index') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('employees.*') ? 'bg-gray-100 font-semibold' : '' }}">
+                            Funcionarios
+                            </a>
+                            <a href="{{ route('benefits.index') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('benefits.*') ? 'bg-gray-100 font-semibold' : '' }}">
+                            Beneficios
+                            </a>
+                            <a href="{{ route('users.index') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('users.*') ? 'bg-gray-100 font-semibold' : '' }}">
+                            Usuarios
+                            </a>
+                            <a href="{{ route('balance.import') }}"
+                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 {{ request()->routeIs('balance.import') ? 'bg-gray-100 font-semibold' : '' }}">
+                            Gestão de saldo
+                            </a>
+                        </div>
                     </div>
-                </div>
+                @endif
 
                 <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
                     <x-nav-link :href="route('excelCustomizado')" :active="request()->routeIs('excelCustomizado')">
@@ -87,7 +93,7 @@
                                     <div class="mb-4">
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo (.xlsx .xls .csv)</label>
                                         <input required type="file" name="file" accept=".xlsx,.xls,.csv" class="block w-full" />
-                                        @error('file') <p class="text-sm text-red-500 mt-1">{{ $message }}</p> @enderror
+                                        @error('file') <p class="text-sm text-red-500 mt-1">{{  }}</p> @enderror
                                     </div>
 
                                     <div class="flex justify-end space-x-2">
@@ -119,7 +125,7 @@
 
                             <!-- Barra de progresso -->
                             <div class="w-full bg-gray-200 rounded-full h-4 mb-4">
-                                <div class="bg-green-600 h-4 rounded-full" :style="`width: ${progress}%`"></div>
+                                <div class="bg-green-600 h-4 rounded-full" :style="width: %"></div>
                             </div>
 
                             <p class="text-sm font-medium mb-2">Progresso: <span x-text="progress"></span>%</p>
@@ -245,12 +251,12 @@ function syncDatabase() {
                     this.listenForUpdates();
                 })
                 .catch(() => {
-                    this.logs.push('❌ Erro ao iniciar sincronização.');
+                    this.logs.push('Erro ao iniciar sincronizacao.');
                 });
         },
 
         listenForUpdates() {
-            // EventSource mantém conexão aberta com o backend
+            // EventSource mantem conexao aberta com o backend
             const es = new EventSource('/sync-database-stream');
 
             es.onmessage = (e) => {
@@ -270,7 +276,7 @@ function syncDatabase() {
 
                 if (data.finished) {
                     es.close();
-                    this.logs.push('✔ Finalizado!');
+                    this.logs.push('Finalizado!');
                 }
             };
         }

@@ -47,5 +47,7 @@ return [
         'token' => env('VR_TOKEN'),
     ],
 
+    'api_access_token' => env('API_ACCESS_TOKEN'),
+
 
 ];
