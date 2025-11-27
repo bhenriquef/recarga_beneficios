@@ -68,7 +68,7 @@
                 </div>
 
                 <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
-                    <div x-data="{ openImport: false }" class="relative">
+                    <div x-data="{ openImport: false, importLoading: false }" class="relative">
                         <button
                             @click="openImport = true"
                             class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
@@ -81,13 +81,13 @@
                             class="fixed inset-0 z-50 flex items-center justify-center p-4"
                             style="background: rgba(0,0,0,0.4);"
                         >
-                            <div @click.away="openImport = false" class="bg-white rounded-lg w-full max-w-lg p-6 shadow-lg">
+                            <div @click.away="openImport = false" class="bg-white rounded-lg w-full max-w-lg p-6 shadow-lg relative overflow-hidden">
                                 <div class="flex justify-between items-center mb-4">
                                     <h3 class="text-lg font-semibold">Importar arquivo Excel</h3>
                                     <button @click="openImport = false" class="text-gray-500 hover:text-gray-700">&times;</button>
                                 </div>
 
-                                <form action="{{ route('imports.upload') }}" method="POST" enctype="multipart/form-data">
+                                <form action="{{ route('imports.upload') }}" method="POST" enctype="multipart/form-data" @submit="importLoading = true">
                                     @csrf
 
                                     <div class="mb-4">
@@ -98,9 +98,30 @@
 
                                     <div class="flex justify-end space-x-2">
                                         <button type="button" @click="openImport = false" class="px-4 py-2 rounded border">Cancelar</button>
-                                        <button type="submit" class="px-4 py-2 rounded bg-indigo-600 text-white">Importar</button>
+                                        <button type="submit" class="px-4 py-2 rounded bg-indigo-600 text-white" :class="{ 'opacity-60 cursor-not-allowed': importLoading }" :disabled="importLoading">
+                                            <span x-show="!importLoading">Importar</span>
+                                            <span x-show="importLoading" class="inline-flex items-center gap-2">
+                                                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 00-6 6H4z"></path>
+                                                </svg>
+                                                Enviando...
+                                            </span>
+                                        </button>
                                     </div>
                                 </form>
+
+                                <div
+                                    x-show="importLoading"
+                                    x-cloak
+                                    class="absolute inset-0 bg-white bg-opacity-80 flex flex-col items-center justify-center space-y-3 text-indigo-700"
+                                >
+                                    <svg class="animate-spin h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 00-6 6H4z"></path>
+                                    </svg>
+                                    <p class="text-sm font-medium">Enviando arquivo, aguarde...</p>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -76,12 +76,21 @@ class ImportController extends Controller
             $php  = env('PHP_PATH', '/usr/bin/php'); // caminho do php no servidor
             $base = base_path();
 
-            // roda o comando em background no Linux
-            $cmd = "cd {$base} && {$php} artisan sync:database --stream > /dev/null 2>&1 &";
+            if(env('APP_ENV') == 'local'){
+                // RODA EM BACKGROUND COM --stream
+                $cmd = "cmd /C \"cd {$base} && start \"\" /B \"{$php}\" artisan sync:database --stream\"";
+                Log::info("🔧 CMD executado: $cmd");
 
-            Log::info("🔧 CMD executado (linux): $cmd");
-
-            exec($cmd); // não bloqueia a requisição
+                // inicia processo sem bloquear e sem abrir janela
+                pclose(popen($cmd, 'r'));
+                Log::info('🔥 Processo de sync iniciado via start /B');
+            }
+            else{
+                // roda o comando em background no Linux
+                $cmd = "cd {$base} && {$php} artisan sync:database --stream > /dev/null 2>&1 &";
+                Log::info("🔧 CMD executado (linux): $cmd");
+                exec($cmd); // não bloqueia a requisição
+            }
 
             return response()->json(['started' => true]);
         } catch (\Throwable $e) {
