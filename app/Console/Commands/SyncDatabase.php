@@ -82,6 +82,7 @@ class SyncDatabase extends Command
                 Cache::put('sync_logs', []);
                 Cache::put('sync_eta', null);
                 Cache::put('sync_finished', false);
+                Cache::put('sync_error', null);
             }
 
             $this->addLog("Começando a sincronização dos dados");
@@ -442,6 +443,8 @@ class SyncDatabase extends Command
             } catch (\Throwable $e) {
                 $this->addLog("❌ Erro ao sincronizar: " . $e->getMessage());
                 Log::error('Erro no SyncDatabase: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+                Cache::put('sync_error', $e->getMessage());
+                $this->updateProgress(100, "00:00");
                 $this->markFinished();
             }
             // sleep(60);

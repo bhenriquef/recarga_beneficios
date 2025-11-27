@@ -49,34 +49,49 @@ Route::middleware('auth')->group(function () {
     Route::post('/sync-database', [ImportController::class, 'runSyncDatabase'])->name('database.sync');
     Route::get('/sync-database-stream', function () {
         return response()->stream(function () {
+            // evita timeouts/encerramento antecipado pelo PHP
+            ignore_user_abort(true);
+            set_time_limit(0);
+
+            // limpa buffers de output que possam travar o flush no PHP-FPM/nginx
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+
+            // envia um byte inicial para abrir o stream no navegador
+            echo ":\n\n";
+            flush();
+
             while (true) {
                 $progress = Cache::get('sync_progress', 0);
-                $logs = Cache::get('sync_logs', []);
-
-                $eta = Cache::get('sync_eta');
+                $logs     = Cache::get('sync_logs', []);
+                $eta      = Cache::get('sync_eta');
+                $finished = Cache::get('sync_finished', false);
+                $error    = Cache::get('sync_error');
 
                 echo "data: " . json_encode([
                     'progress' => $progress,
                     'log'      => array_shift($logs),
                     'eta'      => $eta,
-                    'finished' => $progress >= 100
+                    'finished' => $finished || $progress >= 100,
+                    'error'    => $error,
                 ]) . "\n\n";
 
-
-                ob_flush(); flush();
+                flush();
 
                 Cache::put('sync_logs', $logs);
 
-                if ($progress >= 100 && empty($logs)) {
+                if (($finished || $progress >= 100 || $error) && empty($logs)) {
                     break;
                 }
 
                 usleep(300000); // 0.3s
             }
         }, 200, [
-            'Content-Type' => 'text/event-stream',
-            'Cache-Control' => 'no-cache, must-revalidate',
-            'X-Accel-Buffering' => 'no'
+            'Content-Type'      => 'text/event-stream',
+            'Cache-Control'     => 'no-cache, must-revalidate',
+            'X-Accel-Buffering' => 'no', // desliga buffer do nginx
+            'Connection'        => 'keep-alive',
         ]);
     });
 
