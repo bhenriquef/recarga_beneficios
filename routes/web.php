@@ -62,6 +62,12 @@ Route::middleware('auth')->group(function () {
             echo ":\n\n";
             flush();
 
+            $lastProgress   = null;
+            $lastLogCount   = null;
+            $stalledLoops   = 0;
+            $maxStalledLoop = 400; // ~120s (0.3s * 400)
+            $startedAt      = Cache::get('sync_started_at', null);
+
             while (true) {
                 $progress = Cache::get('sync_progress', 0);
                 $logs     = Cache::get('sync_logs', []);
@@ -69,9 +75,16 @@ Route::middleware('auth')->group(function () {
                 $finished = Cache::get('sync_finished', false);
                 $error    = Cache::get('sync_error');
 
+                // se nunca iniciou o processo ou não há alteração por muito tempo, aborta
+                if (!$startedAt && $stalledLoops > 10) {
+                    $error = 'Processo não iniciou (nenhum start registrado).';
+                }
+
+                $logToSend = array_shift($logs);
+
                 echo "data: " . json_encode([
                     'progress' => $progress,
-                    'log'      => array_shift($logs),
+                    'log'      => $logToSend,
                     'eta'      => $eta,
                     'finished' => $finished || $progress >= 100,
                     'error'    => $error,
@@ -81,7 +94,31 @@ Route::middleware('auth')->group(function () {
 
                 Cache::put('sync_logs', $logs);
 
+                // verifica estagnação: sem progresso e sem novos logs
+                if ($lastProgress === $progress && $lastLogCount === count($logs)) {
+                    $stalledLoops++;
+                    if ($stalledLoops >= $maxStalledLoop) {
+                        $error = $error ?: 'Stream encerrado por inatividade (sem progresso por 120s).';
+                    }
+                } else {
+                    $stalledLoops = 0;
+                }
+
+                $lastProgress = $progress;
+                $lastLogCount = count($logs);
+
                 if (($finished || $progress >= 100 || $error) && empty($logs)) {
+                    if ($error) {
+                        // envia mais um evento final com erro para garantir que o front receba
+                        echo "data: " . json_encode([
+                            'progress' => $progress,
+                            'log'      => null,
+                            'eta'      => $eta,
+                            'finished' => true,
+                            'error'    => $error,
+                        ]) . "\n\n";
+                        flush();
+                    }
                     break;
                 }
 

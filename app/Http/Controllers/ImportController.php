@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\MultiSheetImport;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\Process\Process;
 use Illuminate\Support\Facades\Cache;
 
 class ImportController extends Controller
@@ -15,17 +14,11 @@ class ImportController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // max 10MB
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
         $file = $request->file('file');
-
-        // Gera nome personalizado
-        // Exemplo: planilha_import_2025_10_29_1503.xlsx
-        $extension = $file->getClientOriginalExtension();
         $fileName = 'planilha_vr_referencia.xls';
-
-        // Salva com nome customizado
         $path = $file->storeAs('imports', $fileName);
 
         try {
@@ -37,71 +30,49 @@ class ImportController extends Controller
         }
     }
 
-    // public function runSyncDatabase()
-    // {
-    //     try {
-    //         Cache::put('sync_progress', 0);
-    //         Cache::put('sync_logs', []);
-
-    //         $php = env('PHP_PATH', 'C:\php\php.exe');
-    //         $base = base_path();
-
-    //         // RODA EM BACKGROUND COM --stream
-    //         $cmd = "cmd /C \"cd {$base} && start \"\" /B \"{$php}\" artisan sync:database --stream\"";
-
-    //         Log::info("🔧 CMD executado: $cmd");
-
-    //         // inicia processo sem bloquear e sem abrir janela
-    //         pclose(popen($cmd, 'r'));
-
-    //         Log::info('🔥 Processo de sync iniciado via start /B');
-
-    //         return response()->json(['started' => true]);
-
-    //     } catch (\Throwable $e) {
-    //         Log::error("❌ Erro ao iniciar processo: " . $e->getMessage());
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Erro ao iniciar sincronização.'
-    //         ], 500);
-    //     }
-    // }
-
     public function runSyncDatabase()
     {
         try {
+            if (!function_exists('exec')) {
+                Log::error('sync:database n�o p�de iniciar: fun��o exec desabilitada');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'exec desabilitado no servidor.',
+                ], 500);
+            }
+
             Cache::put('sync_progress', 0);
             Cache::put('sync_logs', []);
+            Cache::put('sync_error', null);
+            Cache::put('sync_started_at', now()->timestamp);
 
-            $php  = env('PHP_PATH', '/usr/bin/php'); // caminho do php no servidor
+            $php  = env('PHP_PATH', '/usr/bin/php');
             $base = base_path();
 
-            if(env('APP_ENV') == 'local'){
-                // RODA EM BACKGROUND COM --stream
+            if (env('APP_ENV') === 'local') {
                 $cmd = "cmd /C \"cd {$base} && start \"\" /B \"{$php}\" artisan sync:database --stream\"";
-                Log::info("🔧 CMD executado: $cmd");
+                Log::info("CMD executado (local): $cmd");
 
-                // inicia processo sem bloquear e sem abrir janela
                 pclose(popen($cmd, 'r'));
-                Log::info('🔥 Processo de sync iniciado via start /B');
-            }
-            else{
-                // roda o comando em background no Linux
+                Log::info('Processo de sync iniciado via start /B');
+            } else {
                 $cmd = "cd {$base} && {$php} artisan sync:database --stream > /dev/null 2>&1 &";
-                Log::info("🔧 CMD executado (linux): $cmd");
-                exec($cmd); // não bloqueia a requisição
+                Log::info("CMD executado (linux): $cmd");
+                exec($cmd, $output, $exitCode);
+
+                if (isset($exitCode) && $exitCode !== 0) {
+                    Cache::put('sync_error', 'Falha ao disparar o processo de sync (exitCode ' . $exitCode . ').');
+                    Log::error("sync:database n�o iniciou (exitCode={$exitCode})", ['output' => $output]);
+                }
             }
 
             return response()->json(['started' => true]);
         } catch (\Throwable $e) {
-            Log::error("❌ Erro ao iniciar processo: " . $e->getMessage());
+            Log::error('Erro ao iniciar processo: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao iniciar sincronização.',
+                'message' => 'Erro ao iniciar sincroniza��o.',
             ], 500);
         }
     }
-
-
-
 }
