@@ -37,32 +37,58 @@ class ImportController extends Controller
         }
     }
 
+    // public function runSyncDatabase()
+    // {
+    //     try {
+    //         Cache::put('sync_progress', 0);
+    //         Cache::put('sync_logs', []);
+
+    //         $php = env('PHP_PATH', 'C:\php\php.exe');
+    //         $base = base_path();
+
+    //         // RODA EM BACKGROUND COM --stream
+    //         $cmd = "cmd /C \"cd {$base} && start \"\" /B \"{$php}\" artisan sync:database --stream\"";
+
+    //         Log::info("🔧 CMD executado: $cmd");
+
+    //         // inicia processo sem bloquear e sem abrir janela
+    //         pclose(popen($cmd, 'r'));
+
+    //         Log::info('🔥 Processo de sync iniciado via start /B');
+
+    //         return response()->json(['started' => true]);
+
+    //     } catch (\Throwable $e) {
+    //         Log::error("❌ Erro ao iniciar processo: " . $e->getMessage());
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Erro ao iniciar sincronização.'
+    //         ], 500);
+    //     }
+    // }
+
     public function runSyncDatabase()
     {
         try {
             Cache::put('sync_progress', 0);
             Cache::put('sync_logs', []);
 
-            $php = env('PHP_PATH', 'C:\php\php.exe');
+            $php  = env('PHP_PATH', '/usr/bin/php'); // caminho do php no servidor
             $base = base_path();
 
-            // RODA EM BACKGROUND COM --stream
-            $cmd = "cmd /C \"cd {$base} && start \"\" /B \"{$php}\" artisan sync:database --stream\"";
+            // roda o comando em background no Linux
+            $cmd = "cd {$base} && {$php} artisan sync:database --stream > /dev/null 2>&1 &";
 
-            Log::info("🔧 CMD executado: $cmd");
+            Log::info("🔧 CMD executado (linux): $cmd");
 
-            // inicia processo sem bloquear e sem abrir janela
-            pclose(popen($cmd, 'r'));
-
-            Log::info('🔥 Processo de sync iniciado via start /B');
+            exec($cmd); // não bloqueia a requisição
 
             return response()->json(['started' => true]);
-
         } catch (\Throwable $e) {
             Log::error("❌ Erro ao iniciar processo: " . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao iniciar sincronização.'
+                'message' => 'Erro ao iniciar sincronização.',
             ], 500);
         }
     }
