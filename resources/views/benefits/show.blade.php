@@ -120,7 +120,7 @@
             <div class="bg-white rounded-lg shadow p-4 mb-8">
                 <div class="flex items-center justify-between mb-3">
                     <p class="text-sm text-gray-600">
-                        Evolução mensal do VT no período selecionado.
+                        Evolução mensal do VT no período selecionado (<strong>{{ $periodLabel }}</strong>).
                     </p>
 
                     @if($historicoTabela->isNotEmpty())
@@ -192,7 +192,7 @@
             <div class="bg-white rounded-lg shadow p-4 mb-8">
                 <div class="flex items-center justify-between mb-3">
                     <p class="text-sm text-gray-600">
-                        Total acumulado para cada funcionário no período selecionado.
+                        Total acumulado para cada funcionário no período selecionado (<strong>{{ $periodLabel }}</strong>).
                     </p>
 
                     @if($funcionariosBeneficio->isNotEmpty())
@@ -265,6 +265,12 @@
             </div>
 
             {{-- 📊 Gráficos --}}
+            <div class="text-sm text-gray-600 mb-4">
+                Período: <strong>{{ $periodLabel }}</strong>
+                <span class="text-gray-400">
+                    ({{ \Carbon\Carbon::parse($startDateStr)->format('d/m/Y') }} a {{ \Carbon\Carbon::parse($endDateStr)->format('d/m/Y') }})
+                </span>
+            </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
                 <div class="bg-white p-4 rounded-lg shadow">
                     <canvas id="chartEvolucao" height="160"></canvas>

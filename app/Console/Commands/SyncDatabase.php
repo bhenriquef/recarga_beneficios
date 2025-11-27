@@ -148,8 +148,6 @@ class SyncDatabase extends Command
                 $inicio = $base->copy()->subMonth()->day(16)->startOfDay();
                 $fim    = $base->copy()->day(15)->endOfDay();
 
-                echo "\n dia: ".$inicio->format('d/m/Y');
-
                 $diasUteis = calcularDiasUteisComSabado(
                     $base->copy()->addMonth()->startOfMonth(),
                     $base->copy()->addMonth()->endOfMonth()

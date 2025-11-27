@@ -330,6 +330,12 @@
 
             {{-- 📈 Gráficos --}}
             <h3 class="text-lg font-semibold text-gray-700 mt-10 mb-3">Análises e Gráficos</h3>
+            <div class="text-sm text-gray-600 mb-4">
+                Período: <strong>{{ $periodLabel }}</strong>
+                <span class="text-gray-400">
+                    ({{ \Carbon\Carbon::parse($startDateStr)->format('d/m/Y') }} a {{ \Carbon\Carbon::parse($endDateStr)->format('d/m/Y') }})
+                </span>
+            </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-white p-4 rounded-lg shadow">
                     <canvas id="chartBeneficiosIfood"></canvas>

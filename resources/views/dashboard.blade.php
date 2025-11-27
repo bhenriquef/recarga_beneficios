@@ -38,6 +38,9 @@
     <div class="py-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             {{-- Cards --}}
+            <p class="text-sm text-gray-600 mb-2">
+                Dados referentes ao período {{ $refMes }} (janela 16/mês a 15/mês seguinte).
+            </p>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 <x-dashboard-card title="Funcionários c/ divergência" :value="$funcsDiasDiferentes" />
                 <x-dashboard-card title="Total VT" :value="number_format($totalBeneficios, 2, ',', '.')" prefix="R$" />
@@ -61,7 +64,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                        Top 10 Empresas com Maior Média de Presença (%)
+                        Top 10 Empresas com Maior Média de Presença (%) — {{ $refMes }}
                     </h3>
                     <canvas id="empresasPresencaMaisChart" height="140"></canvas>
                     <p class="text-xs text-gray-500 mt-2">
@@ -71,7 +74,7 @@
 
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                        Top 10 Empresas com Menor Média de Presença (%)
+                        Top 10 Empresas com Menor Média de Presença (%) — {{ $refMes }}
                     </h3>
                     <canvas id="empresasPresencaMenosChart" height="140"></canvas>
                     <p class="text-xs text-gray-500 mt-2">
