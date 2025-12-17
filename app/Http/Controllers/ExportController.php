@@ -249,6 +249,15 @@ class ExportController extends Controller
             'vr'    => Storage::disk('local')->exists($vrPath),
         ];
 
+        // apenas temporario para testes.
+        Log::info("path ifood: ".$ifoodPath);
+        Log::info("path vr: ".$vrPath);
+
+        logger()->info('Base path = ' . base_path());
+        logger()->info('Storage path = ' . storage_path());
+        logger()->info('Full file path = ' . Storage::disk('local')->path($ifoodPath));
+
+
         // URLs públicas (usando response()->download)
         $urls = [
             'ifood' => $exists['ifood'] ? route('exports.download', ['type' => 'ifood']) : null,
