@@ -30,11 +30,23 @@ class ImportController extends Controller
         }
     }
 
+    public function syncStatus()
+    {
+        $progress = Cache::get('sync_progress', 0);
+        $error    = Cache::get('sync_error', null);
+
+        return response()->json([
+            'finished' => ((int)$progress) >= 100,
+            'error'    => $error,
+        ]);
+    }
+
+
     public function runSyncDatabase()
     {
         try {
             if (!function_exists('exec')) {
-                Log::error('sync:database não pôde iniciar: função exec desabilitada');
+                Log::error('sync:database nï¿½o pï¿½de iniciar: funï¿½ï¿½o exec desabilitada');
                 return response()->json([
                     'success' => false,
                     'message' => 'exec desabilitado no servidor.',
@@ -62,7 +74,7 @@ class ImportController extends Controller
 
                 if (isset($exitCode) && $exitCode !== 0) {
                     Cache::put('sync_error', 'Falha ao disparar o processo de sync (exitCode ' . $exitCode . ').');
-                    Log::error("sync:database não iniciou (exitCode={$exitCode})", ['output' => $output]);
+                    Log::error("sync:database nï¿½o iniciou (exitCode={$exitCode})", ['output' => $output]);
                 }
             }
 
@@ -71,7 +83,7 @@ class ImportController extends Controller
             Log::error('Erro ao iniciar processo: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erro ao iniciar sincronização.',
+                'message' => 'Erro ao iniciar sincronizaï¿½ï¿½o.',
             ], 500);
         }
     }

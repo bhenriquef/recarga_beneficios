@@ -46,91 +46,94 @@ Route::middleware('auth')->group(function () {
     Route::get('/balance-management/import', [BalanceManagementImportController::class, 'index'])->name('balance.import');
     Route::post('/balance-management/import', [BalanceManagementImportController::class, 'store'])->name('balance.import.store');
 
-    Route::post('/sync-database', [ImportController::class, 'runSyncDatabase'])->name('database.sync');
-    Route::get('/sync-database-stream', function () {
-        return response()->stream(function () {
-            // evita timeouts/encerramento antecipado pelo PHP
-            ignore_user_abort(true);
-            set_time_limit(0);
+    Route::post('/database/sync', [ImportController::class, 'runSyncDatabase'])->name('database.sync');
+    Route::get('/database/sync/status', [ImportController::class, 'syncStatus'])->name('database.sync.status');
 
-            // limpa buffers de output que possam travar o flush no PHP-FPM/nginx
-            while (ob_get_level() > 0) {
-                ob_end_flush();
-            }
+    // Route::post('/sync-database', [ImportController::class, 'runSyncDatabase'])->name('database.sync');
+    // Route::get('/sync-database-stream', function () {
+    //     return response()->stream(function () {
+    //         // evita timeouts/encerramento antecipado pelo PHP
+    //         ignore_user_abort(true);
+    //         set_time_limit(0);
 
-            // envia um byte inicial para abrir o stream no navegador
-            echo ":\n\n";
-            flush();
+    //         // limpa buffers de output que possam travar o flush no PHP-FPM/nginx
+    //         while (ob_get_level() > 0) {
+    //             ob_end_flush();
+    //         }
 
-            $lastProgress   = null;
-            $lastLogCount   = null;
-            $stalledLoops   = 0;
-            $maxStalledLoop = 400; // ~120s (0.3s * 400)
-            $startedAt      = Cache::get('sync_started_at', null);
+    //         // envia um byte inicial para abrir o stream no navegador
+    //         echo ":\n\n";
+    //         flush();
 
-            while (true) {
-                $progress = Cache::get('sync_progress', 0);
-                $logs     = Cache::get('sync_logs', []);
-                $eta      = Cache::get('sync_eta');
-                $finished = Cache::get('sync_finished', false);
-                $error    = Cache::get('sync_error');
+    //         $lastProgress   = null;
+    //         $lastLogCount   = null;
+    //         $stalledLoops   = 0;
+    //         $maxStalledLoop = 400; // ~120s (0.3s * 400)
+    //         $startedAt      = Cache::get('sync_started_at', null);
 
-                // se nunca iniciou o processo ou não há alteração por muito tempo, aborta
-                if (!$startedAt && $stalledLoops > 10) {
-                    $error = 'Processo não iniciou (nenhum start registrado).';
-                }
+    //         while (true) {
+    //             $progress = Cache::get('sync_progress', 0);
+    //             $logs     = Cache::get('sync_logs', []);
+    //             $eta      = Cache::get('sync_eta');
+    //             $finished = Cache::get('sync_finished', false);
+    //             $error    = Cache::get('sync_error');
 
-                $logToSend = array_shift($logs);
+    //             // se nunca iniciou o processo ou não há alteração por muito tempo, aborta
+    //             if (!$startedAt && $stalledLoops > 10) {
+    //                 $error = 'Processo não iniciou (nenhum start registrado).';
+    //             }
 
-                echo "data: " . json_encode([
-                    'progress' => $progress,
-                    'log'      => $logToSend,
-                    'eta'      => $eta,
-                    'finished' => $finished || $progress >= 100,
-                    'error'    => $error,
-                ]) . "\n\n";
+    //             $logToSend = array_shift($logs);
 
-                flush();
+    //             echo "data: " . json_encode([
+    //                 'progress' => $progress,
+    //                 'log'      => $logToSend,
+    //                 'eta'      => $eta,
+    //                 'finished' => $finished || $progress >= 100,
+    //                 'error'    => $error,
+    //             ]) . "\n\n";
 
-                Cache::put('sync_logs', $logs);
+    //             flush();
 
-                // verifica estagnação: sem progresso e sem novos logs
-                if ($lastProgress === $progress && $lastLogCount === count($logs)) {
-                    $stalledLoops++;
-                    if ($stalledLoops >= $maxStalledLoop) {
-                        $error = $error ?: 'Stream encerrado por inatividade (sem progresso por 120s).';
-                    }
-                } else {
-                    $stalledLoops = 0;
-                }
+    //             Cache::put('sync_logs', $logs);
 
-                $lastProgress = $progress;
-                $lastLogCount = count($logs);
+    //             // verifica estagnação: sem progresso e sem novos logs
+    //             if ($lastProgress === $progress && $lastLogCount === count($logs)) {
+    //                 $stalledLoops++;
+    //                 if ($stalledLoops >= $maxStalledLoop) {
+    //                     $error = $error ?: 'Stream encerrado por inatividade (sem progresso por 120s).';
+    //                 }
+    //             } else {
+    //                 $stalledLoops = 0;
+    //             }
 
-                if (($finished || $progress >= 100 || $error) && empty($logs)) {
-                    if ($error) {
-                        // envia mais um evento final com erro para garantir que o front receba
-                        echo "data: " . json_encode([
-                            'progress' => $progress,
-                            'log'      => null,
-                            'eta'      => $eta,
-                            'finished' => true,
-                            'error'    => $error,
-                        ]) . "\n\n";
-                        flush();
-                    }
-                    break;
-                }
+    //             $lastProgress = $progress;
+    //             $lastLogCount = count($logs);
 
-                usleep(300000); // 0.3s
-            }
-        }, 200, [
-            'Content-Type'      => 'text/event-stream',
-            'Cache-Control'     => 'no-cache, must-revalidate',
-            'X-Accel-Buffering' => 'no', // desliga buffer do nginx
-            'Connection'        => 'keep-alive',
-        ]);
-    });
+    //             if (($finished || $progress >= 100 || $error) && empty($logs)) {
+    //                 if ($error) {
+    //                     // envia mais um evento final com erro para garantir que o front receba
+    //                     echo "data: " . json_encode([
+    //                         'progress' => $progress,
+    //                         'log'      => null,
+    //                         'eta'      => $eta,
+    //                         'finished' => true,
+    //                         'error'    => $error,
+    //                     ]) . "\n\n";
+    //                     flush();
+    //                 }
+    //                 break;
+    //             }
+
+    //             usleep(300000); // 0.3s
+    //         }
+    //     }, 200, [
+    //         'Content-Type'      => 'text/event-stream',
+    //         'Cache-Control'     => 'no-cache, must-revalidate',
+    //         'X-Accel-Buffering' => 'no', // desliga buffer do nginx
+    //         'Connection'        => 'keep-alive',
+    //     ]);
+    // });
 
 
     Route::resource('users', \App\Http\Controllers\UserController::class);

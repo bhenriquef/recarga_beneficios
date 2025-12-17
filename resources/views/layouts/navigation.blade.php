@@ -141,6 +141,32 @@
                         class="fixed inset-0 z-50 flex items-center justify-center p-4"
                         style="background: rgba(0,0,0,0.4);"
                     >
+                        <div class="relative bg-white rounded-lg w-full max-w-md p-6 shadow-lg overflow-hidden">
+                            <h3 class="text-lg font-semibold mb-2">Sincronizando banco de dados</h3>
+
+                            <p class="text-sm text-gray-600 mb-4">
+                                Esse processo pode demorar de <b>10 a 15 minutos</b>. Por favor, não feche esta página.
+                            </p>
+
+                            <div
+                                x-show="importLoading"
+                                class="bg-white bg-opacity-80 flex flex-col items-center justify-center space-y-3 text-indigo-700 py-6"
+                            >
+                                <svg class="animate-spin h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 00-6 6H4z"></path>
+                                </svg>
+                                <p class="text-sm font-medium">Sincronizando dados, aguarde...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- <div
+                        x-show="open"
+                        x-cloak
+                        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        style="background: rgba(0,0,0,0.4);"
+                    >
                         <div class="bg-white rounded-lg w-full max-w-xl p-6 shadow-lg">
                             <h3 class="text-lg font-semibold mb-4">Sincronizando banco de dados</h3>
 
@@ -168,7 +194,7 @@
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div> --}}
                 </div>
 
                 </div>
@@ -256,51 +282,132 @@
     </div>
 </nav>
 <script>
+// function syncDatabase() {
+//     return {
+//         open: false,
+//         progress: 0,
+//         logs: [],
+
+//         startSync() {
+//             this.open = true;
+//             this.progress = 0;
+//             this.logs = [];
+
+//             axios.post('{{ route('database.sync') }}')
+//                 .then(() => {
+//                     this.listenForUpdates();
+//                 })
+//                 .catch(() => {
+//                     this.logs.push('Erro ao iniciar sincronizacao.');
+//                 });
+//         },
+
+//         listenForUpdates() {
+//             // EventSource mantem conexao aberta com o backend
+//             const es = new EventSource('/sync-database-stream');
+
+//             es.onmessage = (e) => {
+//                 const data = JSON.parse(e.data);
+
+//                 if (data.progress !== undefined) {
+//                     this.progress = data.progress;
+//                 }
+
+//                 if (data.log) {
+//                     this.logs.push(data.log);
+//                 }
+
+//                 if (data.eta) {
+//                     this.eta = data.eta;
+//                 }
+
+//                 if (data.finished) {
+//                     es.close();
+//                     this.logs.push('Finalizado!');
+//                 }
+//             };
+//         }
+//     };
+// }
 function syncDatabase() {
     return {
         open: false,
-        progress: 0,
-        logs: [],
+        importLoading: false,
+        pollTimer: null,
 
         startSync() {
             this.open = true;
-            this.progress = 0;
-            this.logs = [];
+            this.importLoading = true;
 
             axios.post('{{ route('database.sync') }}')
                 .then(() => {
-                    this.listenForUpdates();
+                    this.startPolling();
                 })
                 .catch(() => {
-                    this.logs.push('Erro ao iniciar sincronizacao.');
+                    this.importLoading = false;
+                    this.open = false;
+                    // aqui você pode disparar seu toast
+                    // toast.error('Erro ao iniciar sincronização.');
+
+                    window.dispatchEvent(
+                        new CustomEvent("notify", {
+                            detail: {
+                                type: "error",
+                                message: "Erro ao iniciar sincronização.",
+                            },
+                        })
+                    );
                 });
         },
 
-        listenForUpdates() {
-            // EventSource mantem conexao aberta com o backend
-            const es = new EventSource('/sync-database-stream');
+        startPolling() {
+            if (this.pollTimer) clearInterval(this.pollTimer);
 
-            es.onmessage = (e) => {
-                const data = JSON.parse(e.data);
+            this.pollTimer = setInterval(async () => {
+                try {
+                    const { data } = await axios.get('{{ route('database.sync.status') }}');
 
-                if (data.progress !== undefined) {
-                    this.progress = data.progress;
+                    if (data.finished) {
+                        clearInterval(this.pollTimer);
+                        this.pollTimer = null;
+
+                        this.importLoading = false;
+                        this.open = false;
+
+                        window.dispatchEvent(
+                            new CustomEvent("notify", {
+                                detail: {
+                                    type: "success",
+                                    message: "Sincronização finalizada!",
+                                },
+                            })
+                        );
+                    }
+
+                    if (data.error) {
+                        clearInterval(this.pollTimer);
+                        this.pollTimer = null;
+
+                        this.importLoading = false;
+                        this.open = false;
+
+                        // toast.error(data.error);
+
+                        window.dispatchEvent(
+                            new CustomEvent("notify", {
+                                detail: {
+                                    type: "error",
+                                    message: data?.error || "Erro ao sincronizar dados!.",
+                                },
+                            })
+                        );
+                    }
+                } catch (e) {
+                    // se falhar a consulta, só continua tentando (sem travar usuário)
                 }
-
-                if (data.log) {
-                    this.logs.push(data.log);
-                }
-
-                if (data.eta) {
-                    this.eta = data.eta;
-                }
-
-                if (data.finished) {
-                    es.close();
-                    this.logs.push('Finalizado!');
-                }
-            };
-        }
+            }, 5000);
+        },
     };
 }
+
 </script>
