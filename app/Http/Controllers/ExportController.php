@@ -74,7 +74,7 @@ class ExportController extends Controller
             }
 
             // Excel ifood
-            $fileNameIfood = 'planilha_ifood_' . $this->baseDate->format('mY') . '.xls';
+            $fileNameIfood = 'planilha_ifood_' . $this->baseDate->copy()->format('mY') . '.xls';
             $pathIfood = "exports/ifood/{$fileNameIfood}";
             Storage::makeDirectory('exports/ifood');
 
@@ -103,12 +103,12 @@ class ExportController extends Controller
         try {
             // Dias úteis de 16/mês atual até 15/mês seguinte
             $diasUteis = calcularDiasUteisComSabado(
-                $this->baseDate->day(16),
-                $this->baseDate->addMonth()->day(15)
+                $this->baseDate->copy()->day(16),
+                $this->baseDate->copy()->addMonth()->day(15)
             );
 
-            $inicio_mes_util = $this->baseDate->day(16)->startOfDay()->format('Y-m-d');
-            $fim_mes_util = $this->baseDate->addMonth()->day(15)->startOfDay()->format('Y-m-d');
+            $inicio_mes_util = $this->baseDate->copy()->day(16)->startOfDay()->format('Y-m-d');
+            $fim_mes_util = $this->baseDate->copy()->addMonth()->day(15)->startOfDay()->format('Y-m-d');
 
             $employees = Employee::
             selectRaw('employees.*, companies.cnpj as company_cnpj')
@@ -117,7 +117,7 @@ class ExportController extends Controller
             ->get();
 
             // gera array de dias trabalhados por funcionario nesse mes
-            $workDays = Workday::where('date', $this->baseDate->subMonth()->day(1)->format('Y-m-d'))->pluck('calc_days', 'employee_id')->toArray();
+            $workDays = Workday::where('date', $this->baseDate->copy()->subMonth()->day(1)->format('Y-m-d'))->pluck('calc_days', 'employee_id')->toArray();
             $holidays = Holiday::join('employees', 'employees.id', '=', 'holidays.employee_id')
             ->where('employees.active', true)
             ->where(function($query) use($inicio_mes_util, $fim_mes_util){
@@ -214,7 +214,7 @@ class ExportController extends Controller
             }
 
             // Excel ifood
-            $fileNameIfood = 'planilha_ifood_' . $this->baseDate->format('mY') . '.xls';
+            $fileNameIfood = 'planilha_ifood_' . $this->baseDate->copy()->format('mY') . '.xls';
             $pathIfood = "exports/ifood/{$fileNameIfood}";
             Storage::makeDirectory('exports/ifood');
 
@@ -237,7 +237,7 @@ class ExportController extends Controller
 
     public function check()
     {
-        $mesAtual = $this->baseDate->format('mY');
+        $mesAtual = $this->baseDate->copy()->format('mY');
 
         // Caminhos dos arquivos
         $ifoodPath = "exports/ifood/planilha_ifood_{$mesAtual}.xls";
@@ -272,7 +272,7 @@ class ExportController extends Controller
 
     public function download($type)
     {
-        $mesAtual = $this->baseDate->format('mY');
+        $mesAtual = $this->baseDate->copy()->format('mY');
         $filePath = "exports/{$type}/planilha_{$type}_{$mesAtual}.xls";
 
         if (!Storage::disk('local')->exists($filePath)) {
@@ -325,7 +325,7 @@ class ExportController extends Controller
         }
 
         // Excel VR
-        $fileNameVR = 'planilha_vr_' . $this->baseDate->format('mY') . '.xls';
+        $fileNameVR = 'planilha_vr_' . $this->baseDate->copy()->format('mY') . '.xls';
         Storage::makeDirectory('exports/vr');
         $pathVR = Storage::path("private/exports/vr/{$fileNameVR}");
 
