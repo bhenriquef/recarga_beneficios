@@ -16,7 +16,10 @@ class EmployeesBenefitsMonthly extends Model
         'value',
         'qtd',
         'work_days',
-        'total_value',
+        'total_value', // valor solicitado
+        'accumulated_value', // valor acumulado (credito)
+        'saved_value', // valor economizado
+        'final_value', // valor final creditado
         'paid',
         'date',
     ];

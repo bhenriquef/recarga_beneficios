@@ -58,8 +58,8 @@ class DashboardController extends Controller
         $mesSelecionado = (int) ($request->get('m') ?? $base->format('m'));
 
         // Janela: 16/M até 15/(M+1) do ano selecionado
-        $inicio = Carbon::createFromDate($anoSelecionado, $mesSelecionado, 16)->startOfDay();
-        $fim    = $inicio->copy()->addMonth()->subDay()->endOfDay();
+        $inicio = Carbon::createFromDate($anoSelecionado, $mesSelecionado, 1)->startOfDay();
+        $fim    = $inicio->copy()->addMonth()->endOfMonth()->endOfDay();
 
         // Label exibida
         $refMes   = $inicio->copy()->subMonth(2)->format('d/m') . ' até ' . $fim->copy()->subMonth(2)->format('d/m');
@@ -87,8 +87,31 @@ class DashboardController extends Controller
 
         // 3) Total de benefícios (todos)
         $totalBeneficios = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->whereDate('m.date', $refDate)
+            ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD'])
             ->sum('m.total_value');
+
+        // 3.1) Total Mobilidade iFood (benefits.cod = MOBILIDADE)
+        $totalMobilidadeIfood = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->whereDate('m.date', $refDate)
+            ->where('b.cod', 'MOBILIDADE')
+            ->sum('m.total_value');
+
+        $totalTransporteIfood = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->whereDate('m.date', $refDate)
+            ->where('b.cod', 'IFOOD')
+            ->sum('m.total_value');
+
+        // 3.2) Funcionários demitidos no período (shutdown_date)
+        $totalDemitidosMes = Employee::whereNotNull('shutdown_date')
+            ->whereBetween('shutdown_date', [$inicio->copy()->subMonth()->startOfMonth()->format('Y-m-d'), $fim->copy()->subMonth(2)->endOfMonth()->format('Y-m-d')])
+            ->count();
 
         // 4) Total iFood (exemplo com calc_days * 10)
         $totalIfood = Workday::join('employees as e', 'e.id', '=', 'workdays.employee_id')
@@ -219,6 +242,100 @@ class DashboardController extends Controller
             ->orderByDesc('total_beneficios')
             ->get();
 
+        // E) Gastos por empresa (MOBILIDADE / IFOOD / total_value / accumulated_value / final_value)
+        $gastosPorEmpresa = DB::table('companies as c')
+            ->leftJoin('employees as e', 'e.company_id', '=', 'c.id')
+            ->leftJoin('employees_benefits as eb', 'eb.employee_id', '=', 'e.id')
+            ->leftJoin('employees_benefits_monthly as m', function ($join) use ($refDate) {
+                $join->on('m.employee_benefit_id', '=', 'eb.id')
+                    ->whereDate('m.date', $refDate);
+            })
+            ->leftJoin('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->groupBy('c.id', 'c.name')
+            ->select(
+                'c.id as company_id',
+                'c.name as company_name',
+
+                DB::raw("SUM(CASE WHEN b.cod = 'MOBILIDADE' THEN m.total_value END) as mobilidade_total"),
+                DB::raw("SUM(CASE WHEN b.cod = 'MOBILIDADE' AND m.total_value IS NOT NULL THEN 1 ELSE 0 END) as mobilidade_cnt"),
+
+                DB::raw("SUM(CASE WHEN b.cod = 'IFOOD' THEN m.total_value END) as ifood_vt_total"),
+                DB::raw("SUM(CASE WHEN b.cod = 'IFOOD' AND m.total_value IS NOT NULL THEN 1 ELSE 0 END) as ifood_vt_cnt"),
+
+                DB::raw("SUM(m.total_value) as valor_calculado"),
+                DB::raw("SUM(CASE WHEN m.total_value IS NOT NULL THEN 1 ELSE 0 END) as valor_calculado_cnt"),
+
+                DB::raw("SUM(m.accumulated_value) as valor_economizado"),
+                DB::raw("SUM(CASE WHEN m.accumulated_value IS NOT NULL THEN 1 ELSE 0 END) as valor_economizado_cnt"),
+
+                DB::raw("SUM(m.final_value) as valor_recarga"),
+                DB::raw("SUM(CASE WHEN m.final_value IS NOT NULL THEN 1 ELSE 0 END) as valor_recarga_cnt")
+            )
+            ->havingRaw("
+                SUM(CASE WHEN b.cod = 'MOBILIDADE' AND m.total_value IS NOT NULL THEN 1 ELSE 0 END) > 0
+                OR SUM(CASE WHEN b.cod = 'IFOOD' AND m.total_value IS NOT NULL THEN 1 ELSE 0 END) > 0
+                OR SUM(CASE WHEN m.total_value IS NOT NULL THEN 1 ELSE 0 END) > 0
+                OR SUM(CASE WHEN m.accumulated_value IS NOT NULL THEN 1 ELSE 0 END) > 0
+                OR SUM(CASE WHEN m.final_value IS NOT NULL THEN 1 ELSE 0 END) > 0
+            ")
+            ->orderByDesc('valor_recarga')
+            ->get();
+
+        // F) Funcionários demitidos com perdas estimadas
+        $demitidos = DB::table('employees as e')
+            ->join('companies as c', 'c.id', '=', 'e.company_id')
+            ->whereNotNull('e.shutdown_date')
+            ->whereBetween('e.shutdown_date', [$inicio->copy()->subMonth()->startOfMonth()->format('Y-m-d'), $fim->copy()->subMonth(2)->endOfMonth()->format('Y-m-d')])
+            ->select('e.id', 'e.full_name', 'e.shutdown_date', 'c.name as company_name')
+            ->orderByDesc('e.shutdown_date')
+            ->get();
+
+        $demitidosComPerda = $demitidos->map(function ($emp) use ($refDate) {
+            $shutdown = Carbon::parse($emp->shutdown_date)->startOfDay();
+
+            // fim do mês da demissão (calendário)
+            $endOfMonth = $shutdown->copy()->endOfMonth()->startOfDay();
+
+            // conta dias úteis Seg–Sáb a partir do dia seguinte à demissão
+            $cursor = $shutdown->copy()->addDay();
+            $diasUteisRestantes = 0;
+
+            while ($cursor->lte($endOfMonth)) {
+                // Carbon: Sunday = 0 (ou isSunday())
+                if (!$cursor->isSunday()) {
+                    $diasUteisRestantes++;
+                }
+                $cursor->addDay();
+            }
+
+            // Soma do "value" no mês de referência (refDate) para esse funcionário
+            // (um funcionário pode ter vários benefícios)
+            $benef = DB::table('employees_benefits_monthly as m')
+                ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+                ->whereDate('m.date', $refDate)
+                ->where('eb.employee_id', $emp->id)
+                ->selectRaw('SUM(m.value) as soma_value, SUM(CASE WHEN m.value IS NOT NULL THEN 1 ELSE 0 END) as cnt_value')
+                ->first();
+
+            $somaValue = $benef?->soma_value;
+            $cntValue  = (int) ($benef?->cnt_value ?? 0);
+
+            return (object) [
+                'id' => $emp->id,
+                'company_name' => $emp->company_name,
+                'full_name' => $emp->full_name,
+                'shutdown_date' => $shutdown->format('d/m/Y'),
+                'dias_uteis_restantes' => $diasUteisRestantes,
+
+                'value_base' => $cntValue > 0 ? (float) $somaValue : null,
+                'perda_estimada' => $cntValue > 0 ? ((float) $somaValue * $diasUteisRestantes) : null,
+            ];
+        });
+
+        $demitidosComPerda = $demitidosComPerda
+        ->filter(fn ($row) => !is_null($row->value_base))
+        ->values();
+
         // Arredonda melhor para exibição
         $fmt = fn ($v) => is_null($v) ? 0 : (float) $v;
 
@@ -244,6 +361,11 @@ class DashboardController extends Controller
             'topEmpresasPresencaMenor'   => $topEmpresasPresencaMenor,
             'funcionariosBeneficioAlto'  => $funcionariosBeneficioAlto,
             'limiteBeneficioAlto'        => $limiteBeneficioAlto,
+            'totalMobilidadeIfood' => $fmt($totalMobilidadeIfood),
+            'totalDemitidosMes'    => $totalDemitidosMes,
+            'totalTransporteIfood' => $totalTransporteIfood,
+            'gastosPorEmpresa' => $gastosPorEmpresa,
+            'demitidosComPerda' => $demitidosComPerda,
         ]);
     }
 }

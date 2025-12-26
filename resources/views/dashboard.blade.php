@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center gap-3">
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Dashboard — {{ $refMes }}
+                Dashboard
             </h2>
 
             <form method="GET" action="{{ route('dashboard') }}" class="flex items-center gap-2">
@@ -38,24 +38,30 @@
     <div class="py-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             {{-- Cards --}}
-            <p class="text-sm text-gray-600 mb-2">
-                Dados referentes ao período {{ $refMes }} (janela 16/mês a 15/mês seguinte).
-            </p>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <x-dashboard-card title="Funcionários c/ divergência" :value="$funcsDiasDiferentes" />
-                <x-dashboard-card title="Total VT" :value="number_format($totalBeneficios, 2, ',', '.')" prefix="R$" />
-                <x-dashboard-card title="Total VR" :value="number_format($totalIfood, 2, ',', '.')" prefix="R$" />
-                <x-dashboard-card title="Média VT/func." :value="number_format($avgBeneficioPorFuncionario, 2, ',', '.')" prefix="R$" />
-                <x-dashboard-card title="Média VR/func." :value="number_format($avgIfoodPorFuncionario, 2, ',', '.')" prefix="R$" />
-                <x-dashboard-card title="Média Passagens/func." :value="number_format($avgPassagensPorFuncionario, 2, ',', '.')" />
-                <x-dashboard-card title="Funcionários (total)" :value="$totalFuncionarios" />
-                <x-dashboard-card title="Inativos" :value="$totalInativos" />
+                {{-- <x-dashboard-card title="Funcionários c/ divergência" :value="$funcsDiasDiferentes" /> --}}
+                <x-dashboard-card title="Total Vale Transporte" :value="number_format($totalBeneficios, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Total Vale Refeição" :value="number_format($totalIfood, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card
+                    title="Total Mobilidade iFood"
+                    :value="number_format($totalMobilidadeIfood, 2, ',', '.')"
+                    prefix="R$"
+                />
+                <x-dashboard-card title="Total VT Ifood" :value="number_format($totalTransporteIfood, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Média Vale Transporte/func." :value="number_format($avgBeneficioPorFuncionario, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Média Vale Refeição/func." :value="number_format($avgIfoodPorFuncionario, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Funcionários Ativos" :value="$totalFuncionarios-$totalInativos" />
+                <x-dashboard-card
+                    title="Funcionários demitidos no período"
+                    :value="$totalDemitidosMes"
+                />
+                {{-- <x-dashboard-card title="Inativos" :value="$totalInativos" /> --}}
             </div>
 
             {{-- Gráfico de barras - Top Benefícios --}}
             <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                    Top 10 VT Mais Utilizados — {{ $refMes }}
+                    Top 10 Vale Transporte Mais Utilizados
                 </h3>
                 <canvas id="beneficiosChart" height="120"></canvas>
             </div>
@@ -64,7 +70,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                        Top 10 Empresas com Maior Média de Presença (%) — {{ $refMes }}
+                        Top 10 Empresas com Maior Média de Presença (%)
                     </h3>
                     <canvas id="empresasPresencaMaisChart" height="140"></canvas>
                     <p class="text-xs text-gray-500 mt-2">
@@ -74,13 +80,250 @@
 
                 <div class="bg-white rounded-xl shadow-sm p-6">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                        Top 10 Empresas com Menor Média de Presença (%) — {{ $refMes }}
+                        Top 10 Empresas com Menor Média de Presença (%)
                     </h3>
                     <canvas id="empresasPresencaMenosChart" height="140"></canvas>
                     <p class="text-xs text-gray-500 mt-2">
                         Clique em uma barra para abrir a tela da empresa.
                     </p>
                 </div>
+            </div>
+
+            {{-- Gastos por empresa --}}
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        Gastos por empresa
+                    </h3>
+
+                    @if($gastosPorEmpresa->isNotEmpty())
+                        <div class="flex items-center gap-2">
+                            <input
+                                id="filter-gastos-empresa"
+                                type="text"
+                                placeholder="Filtrar por empresa..."
+                                class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                        </div>
+                    @endif
+                </div>
+
+                @if($gastosPorEmpresa->isEmpty())
+                    <p class="text-sm text-gray-500">Nenhum dado encontrado para o período selecionado.</p>
+                @else
+                    <div class="overflow-x-auto">
+                        <table id="table-gastos-empresa" class="min-w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
+                                    <th class="px-4 py-2">Empresa</th>
+                                    <th class="px-4 py-2">Mobilidade iFood</th>
+                                    <th class="px-4 py-2">VT iFood</th>
+                                    <th class="px-4 py-2">Valor calculado</th>
+                                    <th class="px-4 py-2">Valor economizado</th>
+                                    <th class="px-4 py-2">Valor recarga</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($gastosPorEmpresa as $row)
+                                    <tr>
+                                        <td class="px-4 py-2">{{ $row->company_name }}</td>
+
+                                        <td class="px-4 py-2">
+                                            @if((int)$row->mobilidade_cnt > 0)
+                                                R$ {{ number_format((float)$row->mobilidade_total, 2, ',', '.') }}
+                                            @else
+                                                <span class="text-gray-400 italic">Não informado</span>
+                                            @endif
+                                        </td>
+
+                                        <td class="px-4 py-2">
+                                            @if((int)$row->ifood_vt_cnt > 0)
+                                                R$ {{ number_format((float)$row->ifood_vt_total, 2, ',', '.') }}
+                                            @else
+                                                <span class="text-gray-400 italic">Não informado</span>
+                                            @endif
+                                        </td>
+
+                                        <td class="px-4 py-2">
+                                            @if((int)$row->valor_calculado_cnt > 0)
+                                                R$ {{ number_format((float)$row->valor_calculado, 2, ',', '.') }}
+                                            @else
+                                                <span class="text-gray-400 italic">Não informado</span>
+                                            @endif
+                                        </td>
+
+                                        <td class="px-4 py-2">
+                                            @if((int)$row->valor_economizado_cnt > 0)
+                                                R$ {{ number_format((float)$row->valor_economizado, 2, ',', '.') }}
+                                            @else
+                                                <span class="text-gray-400 italic">Não informado</span>
+                                            @endif
+                                        </td>
+
+                                        <td class="px-4 py-2">
+                                            @if((int)$row->valor_recarga_cnt > 0)
+                                                R$ {{ number_format((float)$row->valor_recarga, 2, ',', '.') }}
+                                            @else
+                                                <span class="text-gray-400 italic">Não informado</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
+                        <span id="gastos-empresa-info"></span>
+                        <div id="gastos-empresa-pagination" class="flex flex-wrap gap-1 justify-end"></div>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Funcionários demitidos com perdas --}}
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        Funcionários demitidos com perdas
+                    </h3>
+
+                    @if($demitidosComPerda->isNotEmpty())
+                        <div class="flex items-center gap-2">
+                            <input
+                                id="filter-demitidos-perda"
+                                type="text"
+                                placeholder="Filtrar por empresa ou funcionário..."
+                                class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                        </div>
+                    @endif
+                </div>
+
+                @if($demitidosComPerda->isEmpty())
+                    <p class="text-sm text-gray-500">Nenhum funcionário demitido encontrado no período.</p>
+                @else
+                    <div class="overflow-x-auto">
+                        <table id="table-demitidos-perda" class="min-w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
+                                    <th class="px-4 py-2">Empresa</th>
+                                    <th class="px-4 py-2">Funcionário</th>
+                                    <th class="px-4 py-2">Data demissão</th>
+                                    <th class="px-4 py-2">Dias úteis restantes (Seg–Sáb)</th>
+                                    <th class="px-4 py-2">Value base</th>
+                                    <th class="px-4 py-2">Perda estimada</th>
+                                    <th class="px-4 py-2 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($demitidosComPerda as $row)
+                                    <tr>
+                                        <td class="px-4 py-2">{{ $row->company_name }}</td>
+                                        <td class="px-4 py-2">{{ $row->full_name }}</td>
+                                        <td class="px-4 py-2">{{ $row->shutdown_date }}</td>
+                                        <td class="px-4 py-2">{{ $row->dias_uteis_restantes }}</td>
+
+                                        <td class="px-4 py-2">
+                                            @if(!is_null($row->value_base))
+                                                R$ {{ number_format($row->value_base, 2, ',', '.') }}
+                                            @else
+                                                <span class="text-gray-400 italic">Não informado</span>
+                                            @endif
+                                        </td>
+
+                                        <td class="px-4 py-2">
+                                            @if(!is_null($row->perda_estimada))
+                                                R$ {{ number_format($row->perda_estimada, 2, ',', '.') }}
+                                            @else
+                                                <span class="text-gray-400 italic">Não informado</span>
+                                            @endif
+                                        </td>
+
+                                        <td class="px-4 py-2 text-right">
+                                            <a
+                                                href="{{ route('employees.show', $row->id) }}"
+                                                class="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700"
+                                            >
+                                                Ver
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
+                        <span id="demitidos-perda-info"></span>
+                        <div id="demitidos-perda-pagination" class="flex flex-wrap gap-1 justify-end"></div>
+                    </div>
+                @endif
+            </div>
+
+
+            {{-- Funcionários com gasto de benefício > limite --}}
+            <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        Funcionários com gasto de VT acima de
+                        R$ {{ number_format($limiteBeneficioAlto, 2, ',', '.') }}
+                    </h3>
+
+                    @if($funcionariosBeneficioAlto->isNotEmpty())
+                        <div class="flex items-center gap-2">
+                            <input
+                                id="filter-beneficio-alto"
+                                type="text"
+                                placeholder="Filtrar por empresa ou funcionário..."
+                                class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                        </div>
+                    @endif
+                </div>
+
+                @if($funcionariosBeneficioAlto->isEmpty())
+                    <p class="text-sm text-gray-500">
+                        Nenhum funcionário com gasto acima de
+                        R$ {{ number_format($limiteBeneficioAlto, 2, ',', '.') }} no período selecionado.
+                    </p>
+                @else
+                    <div class="overflow-x-auto">
+                        <table id="table-beneficio-alto" class="min-w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
+                                    <th class="px-4 py-2">Empresa</th>
+                                    <th class="px-4 py-2">Funcionário</th>
+                                    <th class="px-4 py-2">Total Benefícios (R$)</th>
+                                    <th class="px-4 py-2 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($funcionariosBeneficioAlto as $func)
+                                    <tr>
+                                        <td class="px-4 py-2">{{ $func->company_name }}</td>
+                                        <td class="px-4 py-2">{{ $func->full_name }}</td>
+                                        <td class="px-4 py-2">
+                                            {{ number_format($func->total_beneficios, 2, ',', '.') }}
+                                        </td>
+                                        <td class="px-4 py-2 text-right">
+                                            <a
+                                                href="{{ route('employees.show', $func->id) }}" {{-- ajuste se a rota for outra --}}
+                                                class="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700"
+                                            >
+                                                Ver
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
+                        <span id="beneficio-alto-info"></span>
+                        <div id="beneficio-alto-pagination" class="flex flex-wrap gap-1 justify-end"></div>
+                    </div>
+                @endif
             </div>
 
             {{-- Funcionários sem dados de vale transporte --}}
@@ -145,73 +388,6 @@
                     </div>
                 @endif
             </div>
-
-
-            {{-- Funcionários com gasto de benefício > limite --}}
-            <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800">
-                        Funcionários com gasto de VT acima de
-                        R$ {{ number_format($limiteBeneficioAlto, 2, ',', '.') }} — {{ $refMes }}
-                    </h3>
-
-                    @if($funcionariosBeneficioAlto->isNotEmpty())
-                        <div class="flex items-center gap-2">
-                            <input
-                                id="filter-beneficio-alto"
-                                type="text"
-                                placeholder="Filtrar por empresa ou funcionário..."
-                                class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-                            >
-                        </div>
-                    @endif
-                </div>
-
-                @if($funcionariosBeneficioAlto->isEmpty())
-                    <p class="text-sm text-gray-500">
-                        Nenhum funcionário com gasto acima de
-                        R$ {{ number_format($limiteBeneficioAlto, 2, ',', '.') }} no período selecionado.
-                    </p>
-                @else
-                    <div class="overflow-x-auto">
-                        <table id="table-beneficio-alto" class="min-w-full text-sm">
-                            <thead>
-                                <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
-                                    <th class="px-4 py-2">Empresa</th>
-                                    <th class="px-4 py-2">Funcionário</th>
-                                    <th class="px-4 py-2">Total Benefícios (R$)</th>
-                                    <th class="px-4 py-2 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                @foreach($funcionariosBeneficioAlto as $func)
-                                    <tr>
-                                        <td class="px-4 py-2">{{ $func->company_name }}</td>
-                                        <td class="px-4 py-2">{{ $func->full_name }}</td>
-                                        <td class="px-4 py-2">
-                                            {{ number_format($func->total_beneficios, 2, ',', '.') }}
-                                        </td>
-                                        <td class="px-4 py-2 text-right">
-                                            <a
-                                                href="{{ route('employees.show', $func->id) }}" {{-- ajuste se a rota for outra --}}
-                                                class="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700"
-                                            >
-                                                Ver
-                                            </a>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
-                        <span id="beneficio-alto-info"></span>
-                        <div id="beneficio-alto-pagination" class="flex flex-wrap gap-1 justify-end"></div>
-                    </div>
-                @endif
-            </div>
-
         </div>
     </div>
 
@@ -396,6 +572,23 @@
                 paginationId: 'beneficio-alto-pagination',
                 pageSize: 10,
             });
+
+            initTableWithFilter({
+                tableId: 'table-gastos-empresa',
+                filterInputId: 'filter-gastos-empresa',
+                infoId: 'gastos-empresa-info',
+                paginationId: 'gastos-empresa-pagination',
+                pageSize: 10,
+            });
+
+            initTableWithFilter({
+                tableId: 'table-demitidos-perda',
+                filterInputId: 'filter-demitidos-perda',
+                infoId: 'demitidos-perda-info',
+                paginationId: 'demitidos-perda-pagination',
+                pageSize: 10,
+            });
+
         });
     </script>
 

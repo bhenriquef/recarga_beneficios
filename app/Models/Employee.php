@@ -28,6 +28,7 @@ class Employee extends Model
         'company_id',
         'user_id',
         'admission_date',
+        'shutdown_date',
     ];
 
     protected $casts = [

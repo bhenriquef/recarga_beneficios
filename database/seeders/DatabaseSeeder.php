@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Benefit;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -22,6 +23,22 @@ class DatabaseSeeder extends Seeder
             'name' => 'Admin',
             'email' => 'admin@admin.com',
             'password' => Hash::make('12345678'),
+        ]);
+
+        Benefit::create([
+            'cod' => 'IFOOD',
+            'description' => 'IFOOD',
+            'operator' => 'IFOOD',
+            'type' => 'Cartao',
+            'variable' => 1,
+        ]);
+
+        Benefit::create([
+            'cod' => 'MOBILIDADE',
+            'description' => 'MOBILIDADE',
+            'operator' => 'MOBILIDADE',
+            'type' => 'Cartao',
+            'variable' => 1,
         ]);
     }
 }

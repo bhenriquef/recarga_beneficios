@@ -47,6 +47,26 @@ class SolidesService
         return $response->json()['content'] ?? [];
     }
 
+    public function getFuncionariosDemitidosUltimoMes($inicio, $page = 1)
+    {
+        $response = $this->client()->get('https://employer.tangerino.com.br/employee/find-all', [
+            'size' => 1000,
+            'showFired' => 1,
+            'lastUpdate' => $inicio,
+            'page' => $page,
+        ]);
+
+        if ($response->failed()) {
+            logger()->error('Erro ao buscar colaboradores Solides', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            throw new \Exception("Erro na API Solides: {$response->status()}");
+        }
+
+        return $response->json()['content'] ? $response->json() :  [];
+    }
+
     public function getDiasTrabalhados($id, $inicio, $fim){
         $response = $this->client()->get('https://apis.tangerino.com.br/punch', [
             'employeeId' => $id,

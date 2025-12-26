@@ -90,10 +90,23 @@
                                 <form action="{{ route('imports.upload') }}" method="POST" enctype="multipart/form-data" @submit="importLoading = true">
                                     @csrf
 
+                                    {{-- NOVO: Tipo --}}
+                                    <div class="mb-4">
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de planilha</label>
+                                        <select required name="type" class="block w-full rounded border-gray-300">
+                                            <option value="" selected disabled>Selecione...</option>
+                                            <option value="funcionarios_vr">Funcionarios VR</option>
+                                            <option value="dados_reaproveitamento">Dados Reaproveitamento</option>
+                                            <option value="saldo_livre_ifood">Saldo Livre Ifood</option>
+                                            <option value="saldo_mobilidade_ifood">Saldo Mobilidade Ifood</option>
+                                        </select>
+                                        @error('type') <p class="text-sm text-red-500 mt-1">{{ $message }}</p> @enderror
+                                    </div>
+
                                     <div class="mb-4">
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo (.xlsx .xls .csv)</label>
                                         <input required type="file" name="file" accept=".xlsx,.xls,.csv" class="block w-full" />
-                                        @error('file') <p class="text-sm text-red-500 mt-1">{{  }}</p> @enderror
+                                        @error('file') <p class="text-sm text-red-500 mt-1">{{ $message }}</p> @enderror
                                     </div>
 
                                     <div class="flex justify-end space-x-2">

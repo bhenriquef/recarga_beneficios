@@ -44,11 +44,11 @@
           class="bg-green-600 text-white px-4 py-2 rounded"
         >Baixar iFood</button>
 
-        <button
+        {{-- <button
           x-show="links.vr"
           @click="download('vr')"
           class="bg-blue-600 text-white px-4 py-2 rounded"
-        >Baixar VR</button>
+        >Baixar VR</button> --}}
 
         <button
           @click="generate()"

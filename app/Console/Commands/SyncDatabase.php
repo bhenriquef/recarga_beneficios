@@ -428,6 +428,41 @@ class SyncDatabase extends Command
                     }
                 }
 
+                /* ------------------------------------------
+                * ETAPA 5 — PEGANDO FUNCIONARIOS DEMITIDOS NO ULTIMO MES
+                * ------------------------------------------ */
+
+                $this->addLog("Pegando funcionarios demitidos no ultimo mes na API da Tangerino");
+                $lastUpdate = $base->copy()->subMonth(1)->startOfDay()->valueOf();
+                $array_demitidos = $solides->getFuncionariosDemitidosUltimoMes($lastUpdate);
+                $employeesMap = Employee::pluck('id', 'cpf')->toArray();
+
+                if ($array_demitidos != []) {
+                    $demitidos = $array_demitidos['content'];
+
+                    for ($i = 1; $i <= $array_demitidos['totalPages']; $i++) {
+
+                        // Transação pequena por página de férias
+                        DB::transaction(function () use ($demitidos, $employeesMap) {
+                            foreach ($demitidos as $index => $demitido) {
+                                if ($demitido && isset($demitido['cpf']) && isset($employeesMap[$demitido['cpf']]) && $demitido['resignationDate']) {
+                                    $employee_id = $employeesMap[$demitido['cpf']];
+                                    Employee::find($employee_id)->update([
+                                        'shutdown_date' => Carbon::createFromTimestampMs($demitido['resignationDate']),
+                                        'active' => 0,
+                                    ]);
+                                }
+                            }
+                        });
+
+                        if ($i == $array_demitidos['totalPages']) {
+                            break;
+                        }
+
+                        $demitidos = $solides->getFuncionariosDemitidosUltimoMes($lastUpdate, $i + 1)['content'];
+                    }
+                }
+
                 $baseProgress += $weightAbsences;
                 $updateStepProgress($baseProgress);
 
