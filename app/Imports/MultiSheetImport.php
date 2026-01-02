@@ -8,7 +8,7 @@ class MultiSheetImport implements WithMultipleSheets
 {
     protected $user;
 
-    public function __construct($user = null)
+    public function __construct(public string $competenceMonth, $user = null)
     {
         $this->user = $user;
     }
@@ -16,9 +16,9 @@ class MultiSheetImport implements WithMultipleSheets
     public function sheets(): array
     {
         return [
-            'EMPRESA' => new CompaniesSheetImport($this->user),   // aba 1: empresas
-            'PRODUTOS' => new BenefitsSheetImport($this->user),    // aba 3: benefícios
-            'USUARIOS' => new EmployeesSheetImport($this->user),   // aba 2: funcionários
+            'EMPRESA' => new CompaniesSheetImport($this->competenceMonth, $this->user),   // aba 1: empresas
+            'PRODUTOS' => new BenefitsSheetImport($this->competenceMonth, $this->user),    // aba 3: benefícios
+            'USUARIOS' => new EmployeesSheetImport($this->competenceMonth, $this->user),   // aba 2: funcionários
         ];
     }
 }

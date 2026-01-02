@@ -19,7 +19,7 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
 {
     protected $user;
 
-    public function __construct($user = null)
+    public function __construct(public string $competenceMonth, $user = null)
     {
         $this->user = $user;
     }

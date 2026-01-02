@@ -11,9 +11,12 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Illuminate\Support\Carbon;
 
 class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
 {
+    public function __construct(public string $competenceMonth) {} // "Y-m"
+
     public function headingRow(): int
     {
         return 1;
@@ -56,17 +59,27 @@ class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, Skips
             $Benefit = Benefit::where('cod', $mapped['id_beneficio'])->first();
             $Employee = Employee::where('cpf', $mapped['cpf'])->first();
 
+            if($this->competenceMonth){
+                $base = Carbon::createFromFormat('Y-m', $this->competenceMonth)->startOfMonth()->startOfDay();
+            }
+
             if($Employee && $Benefit){
                 $EmployeBenefit = EmployeesBenefits::where('employee_id', $Employee->id)->where('benefits_id', $Benefit->id)->first();
 
                 if($EmployeBenefit){
-                    EmployeesBenefitsMonthly::where('employee_benefit_id', $EmployeBenefit->id)
-                    ->update([
-                        'total_value' => $mapped['vlr_solicitado'],
-                        'accumulated_value' => $mapped['sld_acumulado'],
-                        'saved_value' => $mapped['vlr_economia'],
-                        'final_value' => $mapped['vlr_final_pedido'],
-                    ]);
+                    EmployeesBenefitsMonthly::updateOrCreate(
+                        [
+                            'employee_benefit_id' => $EmployeBenefit->id,
+                            'date' => $base->copy()->format('Y-m-d'),
+                        ],
+                        [
+                            'total_value' => $mapped['vlr_solicitado'],
+                            'accumulated_value' => $mapped['sld_acumulado'],
+                            'saved_value' => $mapped['vlr_economia'],
+                            'final_value' => $mapped['vlr_final_pedido'],
+                            'qtd' => 1,
+                        ]
+                    );
                 }
             }
         }

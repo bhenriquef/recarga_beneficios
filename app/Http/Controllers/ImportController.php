@@ -11,14 +11,17 @@ use App\Imports\SaldoLivreIfoodImport;
 use App\Imports\SaldoMobilidadeIfoodImport;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use App\Imports\PlanilhaGeralVTImport;
+use App\Imports\ValeAlimentacaoImport;
 
 class ImportController extends Controller
 {
     public function upload(Request $request)
     {
         $request->validate([
-            'type' => 'required|in:funcionarios_vr,dados_reaproveitamento,saldo_livre_ifood,saldo_mobilidade_ifood',
+            'type' => 'required|in:funcionarios_vr,dados_reaproveitamento,vt_ifood_geral',
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'competence_month' => ['required', 'date_format:Y-m'],
         ]);
 
         $type = $request->input('type');
@@ -29,8 +32,7 @@ class ImportController extends Controller
         $fileNameByType = [
             'funcionarios_vr' => 'planilha_vr_referencia',         // sem extensão aqui
             'dados_reaproveitamento' => 'dados_reaproveitamento',
-            'saldo_livre_ifood' => 'saldo_livre_ifood',
-            'saldo_mobilidade_ifood' => 'saldo_mobilidade_ifood',
+            'vt_ifood_geral' => 'vt_ifood_geral',
         ];
 
         $fileBase = $fileNameByType[$type] ?? ('import_' . now()->format('Ymd_His'));
@@ -44,19 +46,16 @@ class ImportController extends Controller
             switch ($type) {
                 case 'funcionarios_vr':
                     // Continua exatamente como hoje (multisheet 3 abas)
-                    Excel::import(new MultiSheetImport, $fullPath);
+                    Excel::import(new MultiSheetImport($request->competence_month), $fullPath);
                     break;
-
                 case 'dados_reaproveitamento':
-                    Excel::import(new DadosReaproveitamentoImport, $fullPath);
+                    Excel::import(new DadosReaproveitamentoImport($request->competence_month), $fullPath);
                     break;
-
-                case 'saldo_livre_ifood':
-                    Excel::import(new SaldoLivreIfoodImport, $fullPath);
+                case 'vt_ifood_geral':
+                    Excel::import(new PlanilhaGeralVTImport($request->competence_month), $fullPath);
                     break;
-
-                case 'saldo_mobilidade_ifood':
-                    Excel::import(new SaldoMobilidadeIfoodImport, $fullPath);
+                case 'vale_alimentacao':
+                    Excel::import(new ValeAlimentacaoImport($request->competence_month), $fullPath);
                     break;
             }
 

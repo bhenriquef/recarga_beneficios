@@ -13,10 +13,16 @@ use Maatwebsite\Excel\Concerns\ToCollection;
 
 class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
 {
+
+    public function __construct(public string $competenceMonth) {} // "Y-m"
+
     public function collection(Collection $rows)
     {
-        // remove header
-        $rows = $rows->slice(1)->values();
+        $headerIndex = 0;
+        if (isset($rows[0][0]) && is_string($rows[0][0]) && trim($rows[0][0]) !== 'NOME') {
+            $headerIndex = 1; // quando header está na linha 2
+        }
+        $rows = $rows->slice($headerIndex + 1)->values();
 
         $grouped = []; // [nome_norm => ['data' => ..., 'sum_valor_creditado' => 0.0]]
 
@@ -29,7 +35,7 @@ class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
                 continue;
             }
 
-            $valorCreditado = $this->asMoney($row[6] ?? null) ?? 0.0;
+            $valorCreditado = $this->asMoney($row[7] ?? null) ?? 0.0;
 
             // Se quiser guardar mais campos "base" (primeira ocorrência)
             if (!isset($grouped[$nomeKey])) {
@@ -55,11 +61,13 @@ class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
 
         $Benefit = Benefit::where('cod', 'MOBILIDADE')->first();
 
-        $base = Carbon::today()->day(1);
+        if($this->competenceMonth){
+            $base = Carbon::createFromFormat('Y-m', $this->competenceMonth)->startOfMonth()->startOfDay();
+        }
 
         $diasUteis = calcularDiasUteisComSabado(
-            $base->copy()->addMonth()->startOfMonth(),
-            $base->copy()->addMonth()->endOfMonth()
+            $base->copy()->startOfMonth(),
+            $base->copy()->endOfMonth()
         );
 
         foreach ($grouped as $item) {
@@ -81,7 +89,7 @@ class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
                 EmployeesBenefitsMonthly::updateOrCreate(
                     [
                         'employee_benefit_id' => $EmployeesBenefits->id,
-                        'date' => $base->addMonth()->format('Y-m-d'),
+                        'date' => $base->copy()->format('Y-m-d'),
                     ],
                     [
                         'value' => ($item['valor_creditado'] / $diasUteis),

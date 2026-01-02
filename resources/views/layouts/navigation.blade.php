@@ -97,11 +97,34 @@
                                             <option value="" selected disabled>Selecione...</option>
                                             <option value="funcionarios_vr">Funcionarios VR</option>
                                             <option value="dados_reaproveitamento">Dados Reaproveitamento</option>
-                                            <option value="saldo_livre_ifood">Saldo Livre Ifood</option>
-                                            <option value="saldo_mobilidade_ifood">Saldo Mobilidade Ifood</option>
+                                            <option value="vt_ifood_geral">Planilha Geral VT (iFood)</option>
+                                            <option value="vale_alimentacao">Vale Alimentação</option>
+                                            {{-- <option value="saldo_livre_ifood">Saldo Livre Ifood</option>
+                                            <option value="saldo_mobilidade_ifood">Saldo Mobilidade Ifood</option> --}}
                                         </select>
                                         @error('type') <p class="text-sm text-red-500 mt-1">{{ $message }}</p> @enderror
                                     </div>
+                                    <div class="mb-4">
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Competência (mês)</label>
+
+                                        <input
+                                            required
+                                            type="text"
+                                            name="competence_month"
+                                            x-data
+                                            value="{{ now()->format('Y-m') }}"
+                                            x-monthpicker="{}"
+                                            autocomplete="false"
+                                            placeholder="mm/aaaa"
+                                            class="block w-full rounded border-gray-300"
+                                        />
+
+
+                                        @error('competence_month')
+                                            <p class="text-sm text-red-500 mt-1">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
 
                                     <div class="mb-4">
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Arquivo (.xlsx .xls .csv)</label>

@@ -13,9 +13,12 @@ use Illuminate\Support\Carbon;
 
 class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
 {
+
+    public function __construct(public string $competenceMonth) {} // "Y-m"
+
     public function collection(Collection $rows)
     {
-        $rows = $rows->slice(1)->values(); // remove header
+        $rows = $rows->slice(2)->values();
 
         $grouped = []; // [matricula_norm => ['data' => ..., 'recarga_total' => 0.0]]
 
@@ -27,7 +30,7 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
                 continue;
             }
 
-            $recargaTotal = $this->asMoney($row[66] ?? null) ?? 0.0;
+            $recargaTotal = $this->asMoney($row[65] ?? null) ?? 0.0;
 
             if (!isset($grouped[$matriculaKey])) {
                 $grouped[$matriculaKey] = [
@@ -53,11 +56,13 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
 
         $Benefit = Benefit::where('cod', 'IFOOD')->first();
 
-        $base = Carbon::today()->day(1);
+        if($this->competenceMonth){
+            $base = Carbon::createFromFormat('Y-m', $this->competenceMonth)->startOfMonth()->startOfDay();
+        }
 
         $diasUteis = calcularDiasUteisComSabado(
-            $base->copy()->addMonth()->startOfMonth(),
-            $base->copy()->addMonth()->endOfMonth()
+            $base->copy()->startOfMonth(),
+            $base->copy()->endOfMonth()
         );
 
         foreach ($grouped as $item) {
@@ -80,7 +85,7 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
                 EmployeesBenefitsMonthly::updateOrCreate(
                     [
                         'employee_benefit_id' => $EmployeesBenefits->id,
-                        'date' => $base->addMonth()->format('Y-m-d'),
+                        'date' => $base->copy()->format('Y-m-d'),
                     ],
                     [
                         'value' => ($item['recarga_total'] / $diasUteis),
