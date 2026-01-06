@@ -105,13 +105,14 @@ class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, Skips
                 );
             }
             else{
-                if($Employee){
+                if(!$Benefit){
                     $this->notFound[] = [
                         'text' => 'Beneficio ('.$mapped['id_beneficio'].') '.$mapped['beneficio'].' não cadastrado na nossa base.'
                     ];
                     continue;
                 }
-                else{
+
+                if(!$Employee){
                     $this->notFound[] = [
                         'text' => 'Funcionario ('.$mapped['cpf'].') '.$mapped['nome'].' não cadastrado na nossa base.'
                     ];
