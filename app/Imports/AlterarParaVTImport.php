@@ -15,6 +15,13 @@ class AlterarParaVTImport implements ToCollection, SkipsEmptyRows
 {
     public function __construct(public string $competenceMonth) {} // "Y-m"
 
+    private array $notFound = [];
+
+    public function getNotFound(): array
+    {
+        return $this->notFound;
+    }
+
     public function collection(Collection $rows)
     {
         // header nessa aba é linha 1
@@ -87,6 +94,12 @@ class AlterarParaVTImport implements ToCollection, SkipsEmptyRows
                         'paid' => true,
                     ]
                 );
+            }
+            else{
+                $this->notFound[] = [
+                    'text' => 'Funcionario ('.$item['cpf'].') '.$item['nome'].' não cadastrado na nossa base.'
+                ];
+                continue;
             }
         }
     }

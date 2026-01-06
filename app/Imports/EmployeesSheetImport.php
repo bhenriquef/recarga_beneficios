@@ -24,6 +24,13 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
         $this->user = $user;
     }
 
+    private array $notFound = [];
+
+    public function getNotFound(): array
+    {
+        return $this->notFound;
+    }
+
     public function collection(Collection $rows)
     {
         $user_id = Auth::user()->id;

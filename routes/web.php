@@ -52,6 +52,9 @@ Route::middleware('auth')->group(function () {
     Route::resource('users', \App\Http\Controllers\UserController::class);
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::get('/imports/logs/{file}', [ImportController::class, 'downloadLog'])
+    ->name('imports.logs.download');
 });
 
 require __DIR__.'/auth.php';

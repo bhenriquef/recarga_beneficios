@@ -20,6 +20,12 @@ class ValeAlimentacaoImport implements ToCollection, WithHeadingRow, WithStartRo
 
     public function headingRow(): int { return 2; }
     public function startRow(): int { return 3; }
+    private array $notFound = [];
+
+    public function getNotFound(): array
+    {
+        return $this->notFound;
+    }
 
     public function collection(Collection $rows)
     {
@@ -58,7 +64,12 @@ class ValeAlimentacaoImport implements ToCollection, WithHeadingRow, WithStartRo
 
         foreach ($grouped as $item) {
             $employee = Employee::where('cpf', $item['cpf'])->first();
-            if (!$employee) continue;
+            if (!$employee){
+                $this->notFound[] = [
+                    'text' => 'Funcionario ('.$item['cpf'].') '.$item['nome'].' não cadastrado na nossa base.'
+                ];
+                continue;
+            }
 
             Workday::updateOrCreate(
                 [

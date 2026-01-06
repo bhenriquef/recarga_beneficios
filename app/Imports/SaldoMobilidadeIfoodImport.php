@@ -15,6 +15,12 @@ class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
 {
 
     public function __construct(public string $competenceMonth) {} // "Y-m"
+    private array $notFound = [];
+
+    public function getNotFound(): array
+    {
+        return $this->notFound;
+    }
 
     public function collection(Collection $rows)
     {
@@ -99,6 +105,12 @@ class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
                         'paid' => true,
                     ]
                 );
+            }
+            else{
+                $this->notFound[] = [
+                    'text' => 'Funcionario (NÃO INFORMADO) '.$item['nome'].' não cadastrado na nossa base.'
+                ];
+                continue;
             }
         }
     }

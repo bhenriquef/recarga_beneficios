@@ -22,8 +22,24 @@ class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, Skips
         return 1;
     }
 
+    private array $notFound = [];
+
+    public function getNotFound(): array
+    {
+        return $this->notFound;
+    }
+
     public function collection(Collection $rows)
     {
+        if($this->competenceMonth){
+            $base = Carbon::createFromFormat('Y-m', $this->competenceMonth)->startOfMonth()->startOfDay();
+        }
+
+        $diasUteis = calcularDiasUteisComSabado(
+            $base->copy()->startOfMonth(),
+            $base->copy()->endOfMonth()
+        );
+
         foreach ($rows as $row) {
             // Observação:
             // Com WithHeadingRow, o Maatwebsite geralmente "slugifica" as chaves.
@@ -59,27 +75,47 @@ class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, Skips
             $Benefit = Benefit::where('cod', $mapped['id_beneficio'])->first();
             $Employee = Employee::where('cpf', $mapped['cpf'])->first();
 
-            if($this->competenceMonth){
-                $base = Carbon::createFromFormat('Y-m', $this->competenceMonth)->startOfMonth()->startOfDay();
-            }
-
             if($Employee && $Benefit){
                 $EmployeBenefit = EmployeesBenefits::where('employee_id', $Employee->id)->where('benefits_id', $Benefit->id)->first();
 
-                if($EmployeBenefit){
-                    EmployeesBenefitsMonthly::updateOrCreate(
-                        [
-                            'employee_benefit_id' => $EmployeBenefit->id,
-                            'date' => $base->copy()->format('Y-m-d'),
-                        ],
-                        [
-                            'total_value' => $mapped['vlr_solicitado'],
-                            'accumulated_value' => $mapped['sld_acumulado'],
-                            'saved_value' => $mapped['vlr_economia'],
-                            'final_value' => $mapped['vlr_final_pedido'],
-                            'qtd' => 1,
-                        ]
-                    );
+                if(!$EmployeBenefit){
+                    $EmployeBenefit = EmployeesBenefits::updateOrCreate([
+                        'employee_id' => $Employee->id,
+                        'benefits_id' => $Benefit->id,
+                    ],
+                    [
+                        'qtd' => 1,
+                        'value' => $mapped['vlr_solicitado'] / $diasUteis,
+                    ]);
+                }
+
+                EmployeesBenefitsMonthly::updateOrCreate(
+                    [
+                        'employee_benefit_id' => $EmployeBenefit->id,
+                        'date' => $base->copy()->format('Y-m-d'),
+                    ],
+                    [
+                        'total_value' => $mapped['vlr_solicitado'],
+                        'accumulated_value' => $mapped['sld_acumulado'],
+                        'saved_value' => $mapped['vlr_economia'],
+                        'final_value' => $mapped['vlr_final_pedido'],
+                        'qtd' => 1,
+                        'work_days' => $diasUteis,
+                    ]
+                );
+            }
+            else{
+                if($Employee){
+                    $this->notFound[] = [
+                        'text' => 'Beneficio ('.$mapped['id_beneficio'].') '.$mapped['beneficio'].' não cadastrado na nossa base.'
+                    ];
+                    continue;
+                }
+                else{
+                    $this->notFound[] = [
+                        'text' => 'Funcionario ('.$mapped['cpf'].') '.$mapped['nome'].' não cadastrado na nossa base.'
+                    ];
+                    continue;
                 }
             }
         }

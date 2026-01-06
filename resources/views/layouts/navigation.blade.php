@@ -68,7 +68,10 @@
                 </div>
 
                 <div class="hidden space-x-4 sm:-my-px sm:ms-10 sm:flex items-center">
-                    <div x-data="{ openImport: false, importLoading: false }" class="relative">
+                    <div x-data="{
+                            openImport: {{ session()->has('log_download') ? 'true' : 'false' }},
+                            importLoading: false
+                        }">
                         <button
                             @click="openImport = true"
                             class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
@@ -146,6 +149,40 @@
                                         </button>
                                     </div>
                                 </form>
+                                @if(session('log_download'))
+                                    <div class="mt-4 rounded-md border border-yellow-200 bg-yellow-50 p-3">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p class="text-sm font-medium text-yellow-800">
+                                                    Importação concluída com avisos
+                                                </p>
+                                                <p class="text-xs text-yellow-700 mt-1">
+                                                    Alguns registros não foram encontrados no sistema. Você pode baixar o relatório para conferir.
+                                                </p>
+                                            </div>
+
+                                            <a
+                                                href="{{ session('log_download') }}"
+                                                class="shrink-0 inline-flex items-center px-3 py-2 rounded bg-yellow-600 text-white text-sm hover:bg-yellow-700"
+                                            >
+                                                Baixar relatório
+                                            </a>
+                                        </div>
+                                    </div>
+
+                                    <script>
+                                        document.addEventListener('alpine:init', () => {
+                                            // abre o modal automaticamente quando voltar com relatório
+                                            // (assim o usuário vê o botão sem precisar clicar em "Importar" de novo)
+                                            const open = () => {
+                                                // tenta setar a variável no escopo mais próximo
+                                                // se openImport estiver em outro x-data, você pode remover esse script e abrir manualmente
+                                                window.openImport = true;
+                                            };
+                                            open();
+                                        });
+                                    </script>
+                                @endif
 
                                 <div
                                     x-show="importLoading"

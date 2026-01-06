@@ -16,6 +16,13 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
 
     public function __construct(public string $competenceMonth) {} // "Y-m"
 
+    private array $notFound = [];
+
+    public function getNotFound(): array
+    {
+        return $this->notFound;
+    }
+
     public function collection(Collection $rows)
     {
         $rows = $rows->slice(2)->values();
@@ -95,6 +102,12 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
                         'paid' => true,
                     ]
                 );
+            }
+            else{
+                $this->notFound[] = [
+                    'text' => 'Funcionario ('.$item['cpf'].') '.$item['nome_completo'].' não cadastrado na nossa base.'
+                ];
+                continue;
             }
         }
     }

@@ -46,17 +46,50 @@ class ImportController extends Controller
             switch ($type) {
                 case 'funcionarios_vr':
                     // Continua exatamente como hoje (multisheet 3 abas)
-                    Excel::import(new MultiSheetImport($request->competence_month), $fullPath);
+                    $import = new MultiSheetImport($request->competence_month);
+                    Excel::import($import, $fullPath);
                     break;
                 case 'dados_reaproveitamento':
-                    Excel::import(new DadosReaproveitamentoImport($request->competence_month), $fullPath);
+                    $import = new DadosReaproveitamentoImport($request->competence_month);
+                    Excel::import($import, $fullPath);
                     break;
                 case 'vt_ifood_geral':
-                    Excel::import(new PlanilhaGeralVTImport($request->competence_month), $fullPath);
+                    $import = new PlanilhaGeralVTImport($request->competence_month);
+                    Excel::import($import, $fullPath);
                     break;
                 case 'vale_alimentacao':
-                    Excel::import(new ValeAlimentacaoImport($request->competence_month), $fullPath);
+                    $import = new ValeAlimentacaoImport($request->competence_month);
+                    Excel::import($import, $fullPath);
                     break;
+            }
+
+            $notFound = $import->getNotFound();
+
+            if ($this->hasNotFoundItems($notFound)) {
+                $lines = [];
+                $lines[] = "REGISTROS NÃO ENCONTRADOS NO BANCO";
+                $lines[] = "Data/Hora: " . now()->format('d/m/Y H:i:s');
+                $lines[] = "Total: " . count($notFound);
+                $lines[] = str_repeat('-', 50);
+
+                foreach ($notFound as $item) {
+                    $lines[] = $item['text'];
+                }
+
+                $content = implode(PHP_EOL, $lines);
+
+                $fileName = 'erros_ao_importar_' . now()->format('Ymd_His') . '.txt';
+                $path = 'imports/logs/' . $fileName;
+
+                Storage::disk('local')->put($path, $content);
+
+                if (!Storage::disk('local')->exists($path)) {
+                    throw new \Exception("Arquivo de log não encontrado para download: {$path}");
+                }
+
+                return redirect()->back()
+                    ->with('error', 'Importado com avisos: alguns registros não foram encontrados.')
+                    ->with('log_download', route('imports.logs.download', ['file' => $fileName]));
             }
 
             return redirect()->back()->with('success', "Arquivo importado com sucesso como {$fileName}.");
@@ -64,6 +97,41 @@ class ImportController extends Controller
             Log::error('Import error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString(), 'type' => $type]);
             return redirect()->back()->with('error', 'Ocorreu um erro ao processar o arquivo: ' . $e->getMessage());
         }
+    }
+
+    public function downloadLog(string $file)
+    {
+        $path = 'imports/logs/' . $file;
+
+        abort_unless(Storage::disk('local')->exists($path), 404);
+
+        return response()->download(
+            Storage::disk('local')->path($path),
+            $file,
+            ['Content-Type' => 'text/plain; charset=utf-8']
+        );
+    }
+
+
+    private function hasNotFoundItems($notFound): bool
+    {
+        if (empty($notFound)) {
+            return false;
+        }
+
+        // Caso "normal": lista flat [ ['text'=>...], ... ]
+        if (is_array($notFound) && isset($notFound[0]) && is_array($notFound[0])) {
+            return count($notFound) > 0;
+        }
+
+        // Caso multisheet: array com chaves e listas dentro
+        foreach ($notFound as $value) {
+            if (is_array($value) && count($value) > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function syncStatus()
