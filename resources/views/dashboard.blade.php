@@ -210,7 +210,7 @@
                                     <th class="px-4 py-2">Funcionário</th>
                                     <th class="px-4 py-2">Data demissão</th>
                                     <th class="px-4 py-2">Dias úteis restantes (Seg–Sáb)</th>
-                                    <th class="px-4 py-2">Value base</th>
+                                    <th class="px-4 py-2">Valor base</th>
                                     <th class="px-4 py-2">Perda estimada</th>
                                     <th class="px-4 py-2 text-right">Ações</th>
                                 </tr>
