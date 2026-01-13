@@ -40,12 +40,18 @@ class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, Skips
             $base->copy()->endOfMonth()
         );
 
-        foreach ($rows as $row) {
-            // Observação:
-            // Com WithHeadingRow, o Maatwebsite geralmente "slugifica" as chaves.
-            // Ex: "VLR. SOLICITADO" -> "vlr_solicitado", "TEVE ECONOMIA?" -> "teve_economia"
-            // Se no seu projeto o formatter estiver diferente, me avisa que eu ajusto.
+        EmployeesBenefitsMonthly::join('employees_benefits as eb', 'eb.id', '=', 'employees_benefits_monthly.employee_benefit_id')
+            ->join('benefits', 'benefits.id', '=', 'eb.benefits_id')
+            ->whereNotIn('benefits.cod', ['VALE_ALIMENTACAO', 'MOBILIDADE', 'IFOOD'])
+            ->where('employees_benefits_monthly.date', $base->copy()->format('Y-m-d'))
+            ->forceDelete();
 
+        EmployeesBenefits::join('benefits', 'benefits.id', '=', 'employees_benefits.benefits_id')
+        ->whereNotIn('benefits.cod', ['VALE_ALIMENTACAO', 'MOBILIDADE', 'IFOOD'])->delete();
+
+        $array_dados = [];
+
+        foreach ($rows as $row) {
             $mapped = [
                 'cnpj'             => $this->onlyDigits($row['cnpj'] ?? null),
                 'empresa'          => $this->asString($row['empresa'] ?? null),
@@ -66,27 +72,38 @@ class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, Skips
                 'vlr_final_pedido' => $this->asMoney($row['vlr_final_pedido'] ?? null),
             ];
 
-            // Se quiser ignorar linhas completamente vazias (por segurança)
-            if ($this->isAllNullOrEmpty($mapped)) {
-                continue;
-            }
-
             $company = Company::where('cnpj', $row['cnpj'] ?? null)->first();
             $Benefit = Benefit::where('cod', $mapped['id_beneficio'])->first();
             $Employee = Employee::where('cpf', $mapped['cpf'])->first();
 
-            if($Employee && $Benefit){
-                $EmployeBenefit = EmployeesBenefits::where('employee_id', $Employee->id)->where('benefits_id', $Benefit->id)->first();
+            // EmployeesBenefits::all()->delete(); // vamos inativar todos os dados anteriores para criamos os novos.
+            if (!$Employee) {
+                $Employee = Employee::create([
+                    'cpf' => $mapped['cpf'],
+                    'full_name' => $mapped['nome'],
+                    'company_id' => $company ? $company->id : 1, // vamos setar padrao 1 ate resolverem o problema do excel.
+                ]);
+            }
 
-                if(!$EmployeBenefit){
-                    $EmployeBenefit = EmployeesBenefits::updateOrCreate([
-                        'employee_id' => $Employee->id,
-                        'benefits_id' => $Benefit->id,
-                    ],
-                    [
-                        'qtd' => 1,
-                        'value' => $mapped['vlr_solicitado'] / $diasUteis,
-                    ]);
+            if($Benefit){
+                if (!isset($array_dados[$Employee->id][$Benefit->id])) {
+                    $EmployeBenefit = EmployeesBenefits::withTrashed()->where('employee_id', $Employee->id)->where('benefits_id', $Benefit->id)->first();
+
+                    if(!$EmployeBenefit){
+                        $EmployeBenefit = $this->createEmployeeBenefit($Employee->id, $Benefit->id, round(($mapped['vlr_solicitado'] / $diasUteis), 2));
+                    }
+
+                    $array_dados[$Employee->id][$Benefit->id][] = $EmployeBenefit->id;
+                }
+                else{
+                    $ignore_id = $array_dados[$Employee->id][$Benefit->id];
+                    $EmployeBenefit = EmployeesBenefits::withTrashed()->where('employee_id', $Employee->id)->where('benefits_id', $Benefit->id)->whereNotIn('id', $ignore_id)->first();
+
+                    if(!$EmployeBenefit){
+                        $EmployeBenefit = $this->createEmployeeBenefit($Employee->id, $Benefit->id, round(($mapped['vlr_solicitado'] / $diasUteis), 2));
+                    }
+
+                    $array_dados[$Employee->id][$Benefit->id][] = $EmployeBenefit->id;
                 }
 
                 EmployeesBenefitsMonthly::updateOrCreate(
@@ -98,28 +115,24 @@ class DadosReaproveitamentoImport implements ToCollection, WithHeadingRow, Skips
                         'total_value' => $mapped['vlr_solicitado'],
                         'accumulated_value' => $mapped['sld_acumulado'],
                         'saved_value' => $mapped['vlr_economia'],
-                        'final_value' => $mapped['vlr_final_pedido'],
+                        'final_value' => $mapped['vlr_final_pedido'] ?: 0,
                         'qtd' => 1,
                         'work_days' => $diasUteis,
                     ]
                 );
             }
-            else{
-                if(!$Benefit){
-                    $this->notFound[] = [
-                        'text' => 'Beneficio ('.$mapped['id_beneficio'].') '.$mapped['beneficio'].' não cadastrado na nossa base.'
-                    ];
-                    continue;
-                }
-
-                if(!$Employee){
-                    $this->notFound[] = [
-                        'text' => 'Funcionario ('.$mapped['cpf'].') '.$mapped['nome'].' não cadastrado na nossa base.'
-                    ];
-                    continue;
-                }
-            }
         }
+    }
+
+    private function createEmployeeBenefit($employee_id, $benefit_id, $value){
+        return EmployeesBenefits::withTrashed()->updateOrCreate([
+            'employee_id' => $employee_id,
+            'benefits_id' => $benefit_id,
+            'value' => $value,
+        ],
+        [
+            'qtd' => 1,
+        ]);
     }
 
     private function asString($value): ?string

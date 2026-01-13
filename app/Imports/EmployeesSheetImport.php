@@ -67,12 +67,18 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
                     );
 
                     $workDay = ModelsWorkday::where('employee_id', $employee->id)->where('date', $inicio)->first();
+                    // EmployeesBenefits::query()->delete(); // vamos inativar todos os dados anteriores para criamos os novos.
 
                     // inserindo vale refeição.
                     $valeAlimentacao = Benefit::where('cod', 'VALE_ALIMENTACAO')->firstOrFail();
                     $valorValeAlimentacao = 10;
+                    $diasTrabalhados = $row[9];
+                    if($workDay){
+                        $workDay->calc_days = $diasTrabalhados;
+                        $workDay->save();
+                    }
 
-                    $employeeBenefit = EmployeesBenefits::updateOrCreate(
+                    $employeeBenefit = EmployeesBenefits::withTrashed()->updateOrCreate(
                         [
                             'employee_id' => $employee->id,
                             'benefits_id' => $valeAlimentacao->id,
@@ -83,23 +89,23 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
                         ]
                     );
 
-                    if($workDay){
+                    // if($workDay){
                         EmployeesBenefitsMonthly::updateOrCreate(
                             [
                                 'employee_benefit_id' => $employeeBenefit->id,
                                 'date' => $competencia->copy()->format('Y-m-d'),
                             ],
                             [
-                                'total_value' => $valorValeAlimentacao * $workDay->calc_days,
+                                'total_value' => $valorValeAlimentacao * $diasTrabalhados,
                                 'accumulated_value' => 0,
                                 'saved_value' => 0,
-                                'final_value' => $valorValeAlimentacao * $workDay->calc_days,
+                                'final_value' => $valorValeAlimentacao * $diasTrabalhados,
                                 'value' => $valorValeAlimentacao,
                                 'qtd' => 1,
-                                'work_days' => $workDay->calc_days,
+                                'work_days' => $diasTrabalhados,
                             ]
                         );
-                    }
+                    // }
 
                     // inserindo beneficios.
                     for($i = 23; $i <= 60; $i+=4){
@@ -107,19 +113,19 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
 
                         if($benefit){
                             $value = floatval(str_replace(',', '.', ($row[$i+3] ?? 0)));
-                            $EmployeesBenefits = EmployeesBenefits::updateOrCreate(
+                            $EmployeesBenefits = EmployeesBenefits::withTrashed()->updateOrCreate(
                                 [
                                     'employee_id' => $employee->id,
                                     'benefits_id' => $benefit->id,
+                                    'value' => $value,
                                 ],
                                 [
-                                    'value' => $value,
                                     'qtd' => $row[$i+1],
                                     'days' => $row[$i+2] != '' ? $row[$i+2] : 0,
                                 ]
                             );
 
-                            if($workDay){
+                            // if($workDay){
                                 EmployeesBenefitsMonthly::updateOrCreate(
                                     [
                                         'employee_benefit_id' => $EmployeesBenefits->id,
@@ -128,15 +134,15 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
                                     [
                                         'value' => $value,
                                         'qtd' => $row[$i+1],
-                                        'work_days' => $workDay->calc_days,
-                                        'total_value' => $workDay->calc_days * $row[$i+1] * $value,
+                                        'work_days' => $diasTrabalhados,
+                                        'total_value' => $diasTrabalhados * $row[$i+1] * $value,
                                         'accumulated_value' => 0,
                                         'saved_value' => 0,
-                                        'final_value' => $workDay->calc_days * $row[$i+1] * $value,
+                                        'final_value' => 0,
                                         'paid' => true,
                                     ]
                                 );
-                            }
+                            // }
                         }
                     }
                 }

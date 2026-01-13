@@ -48,7 +48,7 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows, WithCalcula
                     'situacao'         => $this->asString($row[5] ?? null),
                     'loja'             => $this->asString($row[6] ?? null),
                     'departamento'     => $this->asString($row[10] ?? null),
-                    'cpf'              => $this->onlyDigits($row[1] ?? null),
+                    'cpf'              => $this->onlyDigits($row[3] ?? null),
 
                     // soma principal
                     'recarga_total'    => 0.0,
@@ -76,40 +76,39 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows, WithCalcula
         foreach ($grouped as $item) {
             $Employee = Employee::where('cpf', $item['cpf'])->first();
 
-            if($Employee){
-
-                $EmployeesBenefits = EmployeesBenefits::updateOrCreate(
-                    [
-                        'employee_id' => $Employee->id,
-                        'benefits_id' => $Benefit->id,
-                    ],
-                    [
-                        'value' => 0,
-                        'qtd' => 1,
-                        'days' => 0,
-                    ]
-                );
-
-                EmployeesBenefitsMonthly::updateOrCreate(
-                    [
-                        'employee_benefit_id' => $EmployeesBenefits->id,
-                        'date' => $base->copy()->format('Y-m-d'),
-                    ],
-                    [
-                        'value' => ($item['recarga_total'] / $diasUteis),
-                        'qtd' => 1,
-                        'work_days' => $diasUteis,
-                        'total_value' => $item['recarga_total'],
-                        'paid' => true,
-                    ]
-                );
+            if (!$Employee) {
+                $Employee = Employee::create([
+                    'cpf' => $item['cpf'],
+                    'full_name' => $item['nome_completo'],
+                    'company_id' => 1, // vamos setar padrao 1 ate resolverem o problema do excel.
+                ]);
             }
-            else{
-                $this->notFound[] = [
-                    'text' => 'Funcionario ('.$item['cpf'].') '.$item['nome_completo'].' não cadastrado na nossa base.'
-                ];
-                continue;
-            }
+
+            $EmployeesBenefits = EmployeesBenefits::withTrashed()->updateOrCreate(
+                [
+                    'employee_id' => $Employee->id,
+                    'benefits_id' => $Benefit->id,
+                ],
+                [
+                    'value' => 0,
+                    'qtd' => 1,
+                    'days' => 0,
+                ]
+            );
+
+            EmployeesBenefitsMonthly::updateOrCreate(
+                [
+                    'employee_benefit_id' => $EmployeesBenefits->id,
+                    'date' => $base->copy()->format('Y-m-d'),
+                ],
+                [
+                    'value' => ($item['recarga_total'] / $diasUteis),
+                    'qtd' => 1,
+                    'work_days' => $diasUteis,
+                    'total_value' => $item['recarga_total'],
+                    'paid' => true,
+                ]
+            );
         }
     }
 

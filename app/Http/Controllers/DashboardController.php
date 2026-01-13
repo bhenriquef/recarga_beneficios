@@ -90,7 +90,7 @@ class DashboardController extends Controller
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->join('employees as e', 'eb.employee_id', '=', 'e.id')
-            ->where('e.active', 1)
+            // ->where('e.active', 1)
             ->whereDate('m.date', $refDate)
             ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
             ->selectRaw('sum(m.total_value) as total_calculado, sum(m.saved_value) as total_economizado, sum(m.final_value) as total_real')
@@ -104,7 +104,7 @@ class DashboardController extends Controller
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->join('employees as e', 'eb.employee_id', '=', 'e.id')
-            ->where('e.active', 1)
+            // ->where('e.active', 1)
             ->whereDate('m.date', $refDate)
             ->where('b.cod', 'VALE_ALIMENTACAO')
             ->sum('m.total_value');

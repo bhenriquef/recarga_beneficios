@@ -67,40 +67,39 @@ class AlterarParaVTImport implements ToCollection, SkipsEmptyRows
             $totalDiasTrabalhados = $diasUteis - $item['ausencias'];
             $Employee = Employee::where('cpf', $item['cpf'])->first();
 
-            if($Employee){
-
-                $EmployeesBenefits = EmployeesBenefits::updateOrCreate(
-                    [
-                        'employee_id' => $Employee->id,
-                        'benefits_id' => $Benefit->id,
-                    ],
-                    [
-                        'value' => 0,
-                        'qtd' => 1,
-                        'days' => 0,
-                    ]
-                );
-
-                EmployeesBenefitsMonthly::updateOrCreate(
-                    [
-                        'employee_benefit_id' => $EmployeesBenefits->id,
-                        'date' => $base->copy()->format('Y-m-d'),
-                    ],
-                    [
-                        'value' => ($item['valor_creditado'] / $totalDiasTrabalhados),
-                        'qtd' => 1,
-                        'work_days' => $totalDiasTrabalhados,
-                        'total_value' => $item['valor_creditado'],
-                        'paid' => true,
-                    ]
-                );
+            if (!$Employee) {
+                $Employee = Employee::create([
+                    'cpf' => $item['cpf'],
+                    'full_name' => $item['nome'],
+                    'company_id' => 1, // vamos setar padrao 1 ate resolverem o problema do excel.
+                ]);
             }
-            else{
-                $this->notFound[] = [
-                    'text' => 'Funcionario ('.$item['cpf'].') '.$item['nome'].' não cadastrado na nossa base.'
-                ];
-                continue;
-            }
+
+            $EmployeesBenefits = EmployeesBenefits::withTrashed()->updateOrCreate(
+                [
+                    'employee_id' => $Employee->id,
+                    'benefits_id' => $Benefit->id,
+                ],
+                [
+                    'value' => 0,
+                    'qtd' => 1,
+                    'days' => 0,
+                ]
+            );
+
+            EmployeesBenefitsMonthly::updateOrCreate(
+                [
+                    'employee_benefit_id' => $EmployeesBenefits->id,
+                    'date' => $base->copy()->format('Y-m-d'),
+                ],
+                [
+                    'value' => ($item['valor_creditado'] / $totalDiasTrabalhados),
+                    'qtd' => 1,
+                    'work_days' => $totalDiasTrabalhados,
+                    'total_value' => $item['valor_creditado'],
+                    'paid' => true,
+                ]
+            );
         }
     }
 

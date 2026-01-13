@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Benefit;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\EmployeesBenefits;
 use App\Models\EmployeesBenefitsMonthly;
@@ -47,12 +48,12 @@ class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
             if (!isset($grouped[$nomeKey])) {
                 $grouped[$nomeKey] = [
                     'nome'           => $nome,
-                    'cargo'          => $this->asString($row[1] ?? null),
-                    'empresa_1'       => $this->asString($row[2] ?? null),
+                    'cpf'          => $this->asString($row[1] ?? null),
+                    'empresa'       => $this->asString($row[5] ?? null),
                     'departamento'    => $this->asString($row[3] ?? null),
                     'empresa_2'       => $this->asString($row[4] ?? null),
-                    'valor_fixo'      => $this->asMoney($row[5] ?? null), // (não somando)
-                    'observacao'      => $this->asString($row[7] ?? null),
+                    'valor_fixo'      => $this->asMoney($row[6] ?? null), // (não somando)
+                    'observacao'      => $this->asString($row[8] ?? null),
                     'valor_creditado' => 0.0, // vamos somar aqui
                 ];
             }
@@ -77,41 +78,42 @@ class SaldoMobilidadeIfoodImport implements ToCollection, SkipsEmptyRows
         );
 
         foreach ($grouped as $item) {
-            $Employee = Employee::where('full_name', 'like', '%'.$item['nome'].'%')->first();
+            $employee = Employee::where('full_name', 'like', '%'.$item['nome'].'%')->first();
+            $empresa = Company::where('company', $item['empresa'])->first();
 
-            if($Employee){
-                $EmployeesBenefits = EmployeesBenefits::updateOrCreate(
-                    [
-                        'employee_id' => $Employee->id,
-                        'benefits_id' => $Benefit->id,
-                    ],
-                    [
-                        'value' => 0,
-                        'qtd' => 1,
-                        'days' => 0,
-                    ]
-                );
+            if (!$employee) {
+                $employee = Employee::create([
+                    'cpf' => $item['cpf'],
+                    'full_name' => $item['nome'],
+                    'company_id' => $empresa ? $empresa->id : 1, // vamos setar padrao 1 ate resolverem o problema do excel.
+                ]);
+            }
 
-                EmployeesBenefitsMonthly::updateOrCreate(
-                    [
-                        'employee_benefit_id' => $EmployeesBenefits->id,
-                        'date' => $base->copy()->format('Y-m-d'),
-                    ],
-                    [
-                        'value' => ($item['valor_creditado'] / $diasUteis),
-                        'qtd' => 1,
-                        'work_days' => $diasUteis,
-                        'total_value' => $item['valor_creditado'],
-                        'paid' => true,
-                    ]
-                );
-            }
-            else{
-                $this->notFound[] = [
-                    'text' => 'Funcionario (NÃO INFORMADO) '.$item['nome'].' não cadastrado na nossa base.'
-                ];
-                continue;
-            }
+            $EmployeesBenefits = EmployeesBenefits::withTrashed()->updateOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'benefits_id' => $Benefit->id,
+                ],
+                [
+                    'value' => 0,
+                    'qtd' => 1,
+                    'days' => 0,
+                ]
+            );
+
+            EmployeesBenefitsMonthly::updateOrCreate(
+                [
+                    'employee_benefit_id' => $EmployeesBenefits->id,
+                    'date' => $base->copy()->format('Y-m-d'),
+                ],
+                [
+                    'value' => ($item['valor_creditado'] / $diasUteis),
+                    'qtd' => 1,
+                    'work_days' => $diasUteis,
+                    'total_value' => $item['valor_creditado'],
+                    'paid' => true,
+                ]
+            );
         }
     }
 

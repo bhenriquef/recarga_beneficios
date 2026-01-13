@@ -60,6 +60,16 @@ class ValeAlimentacaoBaseImport implements ToCollection, WithHeadingRow, WithSta
 
         $Benefit = Benefit::where('cod', 'VALE_ALIMENTACAO')->first();
 
+        // deletar os dados que ja existem de ifood para nao termos problema com o calculo.
+        EmployeesBenefitsMonthly::join('employees_benefits as eb', 'eb.id', '=', 'employees_benefits_monthly.employee_benefit_id')
+        ->join('benefits', 'benefits.id', '=', 'eb.benefits_id')
+        ->where('benefits.cod', 'VALE_ALIMENTACAO')
+        ->where('employees_benefits_monthly.date', $base->copy()->format('Y-m-d'))
+        ->forceDelete();
+
+        EmployeesBenefits::join('benefits', 'benefits.id', '=', 'employees_benefits.benefits_id')
+        ->where('benefits.cod', 'VALE_ALIMENTACAO')->delete();
+
         foreach ($grouped as $item) {
             $employee = Employee::where('cpf', $item['cpf'])->first();
             if (!$employee) {
@@ -71,10 +81,10 @@ class ValeAlimentacaoBaseImport implements ToCollection, WithHeadingRow, WithSta
             }
 
             $diasTrabalhados = $item['dias'] - $item['ausencias'];
-            $EmployeBenefit = EmployeesBenefits::where('employee_id', $employee->id)->where('benefits_id', $Benefit->id)->first();
+            $EmployeBenefit = EmployeesBenefits::withTrashed()->where('employee_id', $employee->id)->where('benefits_id', $Benefit->id)->first();
 
             if(!$EmployeBenefit){
-                $EmployeBenefit = EmployeesBenefits::updateOrCreate([
+                $EmployeBenefit = EmployeesBenefits::withTrashed()->updateOrCreate([
                     'employee_id' => $employee->id,
                     'benefits_id' => $Benefit->id,
                 ],
