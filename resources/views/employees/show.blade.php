@@ -88,9 +88,9 @@
                     </p>
                 </div>
                 <div class="bg-white shadow rounded-lg p-4 text-center">
-                    <h4 class="text-sm text-gray-500">Total Acumulado de VT</h4>
+                    <h4 class="text-sm text-gray-500">Total Vale Transporte</h4>
                     <p class="text-2xl font-semibold text-emerald-600">
-                        R$ {{ number_format(optional($beneficiosAcumulados->last())->acumulado ?? 0, 2, ',', '.') }}
+                        R$ {{ number_format($totalBeneficios, 1, ',', '.') }}
                     </p>
                 </div>
                 <div class="bg-white shadow rounded-lg p-4 text-center">
@@ -102,26 +102,26 @@
                     <p class="text-2xl font-semibold text-rose-600">{{ number_format($mediaFaltas, 1, ',', '.') }}</p>
                 </div>
                 <div class="bg-white shadow rounded-lg p-4 text-center">
-                    <h4 class="text-sm text-gray-500">Média de VT por mês</h4>
+                    <h4 class="text-sm text-gray-500">Média de Vale Transporte por mês</h4>
                     <p class="text-2xl font-semibold text-emerald-600">R$ {{ number_format($mediaBeneficios, 2, ',', '.') }}</p>
                 </div>
                 <div class="bg-white shadow rounded-lg p-4 text-center">
-                    <h4 class="text-sm text-gray-500">Média de VR por mês</h4>
+                    <h4 class="text-sm text-gray-500">Média de Vale Refeição por mês</h4>
                     <p class="text-2xl font-semibold text-orange-500">R$ {{ number_format($mediaIfood, 2, ',', '.') }}</p>
                 </div>
                 <div class="bg-white shadow rounded-lg p-4 text-center">
-                    <h4 class="text-sm text-gray-500">Total VR</h4>
+                    <h4 class="text-sm text-gray-500">Total Vale Refeição</h4>
                     <p class="text-2xl font-semibold text-orange-600">R$ {{ number_format($totalIfood, 2, ',', '.') }}</p>
                 </div>
             </div>
 
             {{-- 💼 Benefícios Utilizados --}}
-            <h3 class="text-lg font-semibold text-gray-700 mb-3">VT Utilizados</h3>
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">Beneficios Utilizados</h3>
 
             <div class="bg-white rounded-lg shadow p-4 mb-8">
                 <div class="flex items-center justify-between mb-3">
                     <p class="text-sm text-gray-600">
-                        VT configurados para o funcionário
+                        Beneficios configurados para o funcionário
                     </p>
 
                     @if($beneficiosUsados->isNotEmpty())
@@ -135,7 +135,7 @@
                 </div>
 
                 @if($beneficiosUsados->isEmpty())
-                    <p class="text-sm text-gray-500">Nenhum VT configurado para este funcionário.</p>
+                    <p class="text-sm text-gray-500">Nenhum beneficio configurado para este funcionário.</p>
                 @else
                     <div class="overflow-x-auto">
                         <table id="table-beneficios" class="min-w-full text-sm">
@@ -198,8 +198,13 @@
                                     <th class="px-3 py-2">Mês</th>
                                     <th class="px-3 py-2">Dias Úteis</th>
                                     <th class="px-3 py-2">Dias Calculados</th>
-                                    <th class="px-3 py-2">Total VT</th>
-                                    <th class="px-3 py-2">Total VR</th>
+                                    <th class="px-3 py-2">Vale Refeição</th>
+                                    <th class="px-3 py-2">Mobilidade Ifood</th>
+                                    <th class="px-3 py-2">Vale Transporte Ifood</th>
+                                    <th class="px-3 py-2">VT Calculado</th>
+                                    <th class="px-3 py-2">VT Acumulado</th>
+                                    <th class="px-3 py-2">VT Economizado</th>
+                                    <th class="px-3 py-2">VT Recarga</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
@@ -209,10 +214,25 @@
                                         <td class="px-3 py-2">{{ number_format($mes->dias_uteis, 0, ',', '.') }}</td>
                                         <td class="px-3 py-2">{{ number_format($mes->dias_calculados, 0, ',', '.') }}</td>
                                         <td class="px-3 py-2">
-                                            R$ {{ number_format($mes->total_beneficios, 2, ',', '.') }}
+                                            R$ {{ number_format($mes->total_vale_alimentacao, 2, ',', '.') }}
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            R$ {{ number_format($mes->total_mobilidade, 2, ',', '.') }}
                                         </td>
                                         <td class="px-3 py-2">
                                             R$ {{ number_format($mes->total_ifood, 2, ',', '.') }}
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            R$ {{ number_format($mes->total_beneficios, 2, ',', '.') }}
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            R$ {{ number_format($mes->total_acumulado, 2, ',', '.') }}
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            R$ {{ number_format($mes->total_economizado, 2, ',', '.') }}
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            R$ {{ number_format($mes->total_real, 2, ',', '.') }}
                                         </td>
                                     </tr>
                                 @endforeach
@@ -373,15 +393,15 @@
                 </div>
 
                 {{-- Gráfico 3: Benefícios x iFood --}}
-                <div class="bg-white p-4 rounded-lg shadow">
+                {{-- <div class="bg-white p-4 rounded-lg shadow">
                     <canvas id="chartBeneficiosIfood" height="150"></canvas>
-                </div>
+                </div> --}}
 
 
                 {{-- Gráfico 4: Evolução Acumulada --}}
-                <div class="bg-white p-4 rounded-lg shadow">
+                {{-- <div class="bg-white p-4 rounded-lg shadow">
                     <canvas id="chartBeneficioAcumulado" height="150"></canvas>
-                </div>
+                </div> --}}
             </div>
 
             {{-- 📄 Botões de ação --}}
@@ -608,38 +628,38 @@
             const diasUteis = historico.map(item => item.dias_uteis ?? 0);
 
             // === Gráfico 1: Benefícios x iFood ===
-            new Chart(document.getElementById('chartBeneficiosIfood').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: meses,
-                    datasets: [
-                        {
-                            label: 'Total VT (R$)',
-                            data: totalBeneficios,
-                            borderColor: 'rgb(99, 102, 241)',
-                            backgroundColor: 'rgba(99, 102, 241, 0.2)',
-                            tension: 0.3,
-                            fill: true
-                        },
-                        {
-                            label: 'Total VR (R$)',
-                            data: totalIfood,
-                            borderColor: 'rgb(34, 197, 94)',
-                            backgroundColor: 'rgba(34, 197, 94, 0.2)',
-                            tension: 0.3,
-                            fill: true
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'top' },
-                        title: { display: true, text: 'Evolução de Gastos Mensais' }
-                    },
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
+            // new Chart(document.getElementById('chartBeneficiosIfood').getContext('2d'), {
+            //     type: 'line',
+            //     data: {
+            //         labels: meses,
+            //         datasets: [
+            //             {
+            //                 label: 'Total Vale Transporte (R$)',
+            //                 data: totalBeneficios,
+            //                 borderColor: 'rgb(99, 102, 241)',
+            //                 backgroundColor: 'rgba(99, 102, 241, 0.2)',
+            //                 tension: 0.3,
+            //                 fill: true
+            //             },
+            //             {
+            //                 label: 'Total VR (R$)',
+            //                 data: totalIfood,
+            //                 borderColor: 'rgb(34, 197, 94)',
+            //                 backgroundColor: 'rgba(34, 197, 94, 0.2)',
+            //                 tension: 0.3,
+            //                 fill: true
+            //             }
+            //         ]
+            //     },
+            //     options: {
+            //         responsive: true,
+            //         plugins: {
+            //             legend: { position: 'top' },
+            //             title: { display: true, text: 'Evolução de Gastos Mensais' }
+            //         },
+            //         scales: { y: { beginAtZero: true } }
+            //     }
+            // });
 
             // === Gráfico 2: Distribuição de Benefícios ===
             new Chart(document.getElementById('chartDistribuicaoBeneficios').getContext('2d'), {
@@ -694,28 +714,28 @@
             // === Gráfico 4: Evolução Acumulada ===
             const mesesAcumulado = acumulado.map(item => item.mes);
             const valoresAcumulados = acumulado.map(item => item.acumulado);
-            new Chart(document.getElementById('chartBeneficioAcumulado').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: mesesAcumulado,
-                    datasets: [{
-                        label: 'VT Acumulado (R$)',
-                        data: valoresAcumulados,
-                        borderColor: 'rgb(234, 88, 12)',
-                        backgroundColor: 'rgba(234, 88, 12, 0.2)',
-                        fill: true,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'top' },
-                        title: { display: true, text: 'Evolução Acumulada de VT' }
-                    },
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
+            // new Chart(document.getElementById('chartBeneficioAcumulado').getContext('2d'), {
+            //     type: 'line',
+            //     data: {
+            //         labels: mesesAcumulado,
+            //         datasets: [{
+            //             label: 'Vale Transporte Acumulado (R$)',
+            //             data: valoresAcumulados,
+            //             borderColor: 'rgb(234, 88, 12)',
+            //             backgroundColor: 'rgba(234, 88, 12, 0.2)',
+            //             fill: true,
+            //             tension: 0.3
+            //         }]
+            //     },
+            //     options: {
+            //         responsive: true,
+            //         plugins: {
+            //             legend: { position: 'top' },
+            //             title: { display: true, text: 'Evolução Acumulada de Vale Transporte' }
+            //         },
+            //         scales: { y: { beginAtZero: true } }
+            //     }
+            // });
         });
     </script>
 </x-app-layout>

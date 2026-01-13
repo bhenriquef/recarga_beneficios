@@ -40,5 +40,13 @@ class DatabaseSeeder extends Seeder
             'type' => 'Cartao',
             'variable' => 1,
         ]);
+
+        Benefit::create([
+            'cod' => 'VALE_ALIMENTACAO',
+            'description' => 'VALE ALIMENTAÇÃO',
+            'operator' => 'IFOOD',
+            'type' => 'Cartao',
+            'variable' => 1,
+        ]);
     }
 }

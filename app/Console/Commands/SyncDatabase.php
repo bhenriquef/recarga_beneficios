@@ -290,41 +290,62 @@ class SyncDatabase extends Command
                         }
                     }
 
-                    $EmployeesBenefits = EmployeesBenefits::where('employee_id', $employee->id)->get();
-                    $EmployeesBenefitsMonthly = [];
+                    // $EmployeesBenefits = EmployeesBenefits::
+                    //                     join('benefits', 'benefits.id', '=', 'benefits_id')
+                    //                     ->where('employee_id', $employee->id)
+                    //                     ->whereNotIn('benefits.cod', ['IFOOD', 'MOBILIDADE', 'VALE_ALIMENTACAO'])
+                    //                     ->selectRaw('employees_benefits.*')->get();
 
-                    foreach ($EmployeesBenefits as $empb) {
-                        $valueBenefit = $diasTrabalhados * $empb['qtd'] * $empb['value'];
-                        // $EmployeesBenefitsMonthly[] = [
-                        //     'employee_benefit_id' => $empb['id'],
-                        //     'value'               => $empb['value'],
-                        //     'qtd'                 => $empb['qtd'],
-                        //     'work_days'           => $diasTrabalhados,
-                        //     'total_value'         => $valueBenefit,
-                        //     'paid'                => true,
-                        //     'date'                => $base->copy()->day(1)->format('Y-m-d'),
-                        // ];
+                    // foreach ($EmployeesBenefits as $empb) {
+                    //     $valueBenefit = $diasTrabalhados * $empb['qtd'] * $empb['value'];
 
-                        EmployeesBenefitsMonthly::updateOrCreate(
-                            [
-                                'employee_benefit_id' => $empb['id'],
-                                'date' => $base->copy()->day(1)->format('Y-m-d'),
-                            ],
-                            [
-                                'value' => $empb['value'],
-                                'qtd' => $empb['qtd'],
-                                'work_days' => $diasTrabalhados,
-                                'total_value' => $valueBenefit,
-                                'paid' => true,
-                            ]
-                        );
-                    }
+                    //     EmployeesBenefitsMonthly::updateOrCreate(
+                    //         [
+                    //             'employee_benefit_id' => $empb['id'],
+                    //             'date' => $base->copy()->addMonth()->day(1)->format('Y-m-d'),
+                    //         ],
+                    //         [
+                    //             'value' => $empb['value'],
+                    //             'qtd' => $empb['qtd'],
+                    //             'work_days' => $diasTrabalhados,
+                    //             'total_value' => $valueBenefit,
+                    //             'paid' => true,
+                    //         ]
+                    //     );
+                    // }
 
-                    // EmployeesBenefitsMonthly::upsert(
-                    //     $EmployeesBenefitsMonthly,
-                    //     ['employee_benefit_id', 'date'],
-                    //     ['value', 'qtd', 'work_days', 'total_value', 'paid']
-                    // );
+                    // // ALTERAÇÃO: AGORA O VALE ALIMENTACAO SERA SALVO COMO UM BENEFICIO.
+                    // DB::transaction(function () use ($employee, $base, $diasTrabalhados) {
+                    //     $valeAlimentacao = Benefit::where('cod', 'VALE_ALIMENTACAO')->firstOrFail();
+                    //     $valorValeAlimentacao = 10;
+
+                    //     $employeeBenefit = EmployeesBenefits::updateOrCreate(
+                    //         [
+                    //             'employee_id' => $employee->id,
+                    //             'benefits_id' => $valeAlimentacao->id,
+                    //         ],
+                    //         [
+                    //             'qtd' => 1,
+                    //             'value' => $valorValeAlimentacao,
+                    //         ]
+                    //     );
+
+                    //     EmployeesBenefitsMonthly::updateOrCreate(
+                    //         [
+                    //             'employee_benefit_id' => $employeeBenefit->id,
+                    //             'date' => $base->copy()->addMonth()->day(1)->format('Y-m-d'),
+                    //         ],
+                    //         [
+                    //             'total_value' => $valorValeAlimentacao * $diasTrabalhados,
+                    //             'accumulated_value' => 0,
+                    //             'saved_value' => 0,
+                    //             'final_value' => $valorValeAlimentacao * $diasTrabalhados,
+                    //             'value' => $valorValeAlimentacao,
+                    //             'qtd' => 1,
+                    //             'work_days' => $diasTrabalhados,
+                    //         ]
+                    //     );
+                    // });
 
                     Workday::updateOrCreate([
                         'employee_id' => $employee->id,

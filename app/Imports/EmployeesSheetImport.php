@@ -37,6 +37,7 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
         $today = Carbon::today();
         $base  = $today->day >= 16 ? $today->addMonth()->copy() : $today->copy();
         $inicio = $base->copy()->startOfMonth()->format('Y-m-d');
+        $competencia = Carbon::createFromFormat('Y-m', $this->competenceMonth)->startOfMonth()->startOfDay();
 
         foreach ($rows as $index => $row) {
             if($index < 3) // começa os dados na linha 4
@@ -66,6 +67,41 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
                     );
 
                     $workDay = ModelsWorkday::where('employee_id', $employee->id)->where('date', $inicio)->first();
+
+                    // inserindo vale refeição.
+                    $valeAlimentacao = Benefit::where('cod', 'VALE_ALIMENTACAO')->firstOrFail();
+                    $valorValeAlimentacao = 10;
+
+                    $employeeBenefit = EmployeesBenefits::updateOrCreate(
+                        [
+                            'employee_id' => $employee->id,
+                            'benefits_id' => $valeAlimentacao->id,
+                        ],
+                        [
+                            'qtd' => 1,
+                            'value' => $valorValeAlimentacao,
+                        ]
+                    );
+
+                    if($workDay){
+                        EmployeesBenefitsMonthly::updateOrCreate(
+                            [
+                                'employee_benefit_id' => $employeeBenefit->id,
+                                'date' => $competencia->copy()->format('Y-m-d'),
+                            ],
+                            [
+                                'total_value' => $valorValeAlimentacao * $workDay->calc_days,
+                                'accumulated_value' => 0,
+                                'saved_value' => 0,
+                                'final_value' => $valorValeAlimentacao * $workDay->calc_days,
+                                'value' => $valorValeAlimentacao,
+                                'qtd' => 1,
+                                'work_days' => $workDay->calc_days,
+                            ]
+                        );
+                    }
+
+                    // inserindo beneficios.
                     for($i = 23; $i <= 60; $i+=4){
                         $benefit = Benefit::where('cod', $row[$i])->first();
 
@@ -87,13 +123,16 @@ class EmployeesSheetImport implements ToCollection, WithHeadingRow
                                 EmployeesBenefitsMonthly::updateOrCreate(
                                     [
                                         'employee_benefit_id' => $EmployeesBenefits->id,
-                                        'date' => $workDay->date,
+                                        'date' => $competencia->copy()->format('Y-m-d'),
                                     ],
                                     [
                                         'value' => $value,
                                         'qtd' => $row[$i+1],
                                         'work_days' => $workDay->calc_days,
                                         'total_value' => $workDay->calc_days * $row[$i+1] * $value,
+                                        'accumulated_value' => 0,
+                                        'saved_value' => 0,
+                                        'final_value' => $workDay->calc_days * $row[$i+1] * $value,
                                         'paid' => true,
                                     ]
                                 );

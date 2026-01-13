@@ -40,16 +40,18 @@
             {{-- Cards --}}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {{-- <x-dashboard-card title="Funcionários c/ divergência" :value="$funcsDiasDiferentes" /> --}}
-                <x-dashboard-card title="Total Vale Transporte" :value="number_format($totalBeneficios, 2, ',', '.')" prefix="R$" />
-                <x-dashboard-card title="Total Vale Refeição" :value="number_format($totalIfood, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Total Vale Transporte Calculado" :value="number_format($totalBeneficios, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Total Vale Transporte Economizado" :value="number_format($totalEconomizado, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Total Recarga Vale Transporte" :value="number_format($totalReal, 2, ',', '.')" prefix="R$" />
+                <x-dashboard-card title="Total Vale Refeição" :value="number_format($totalValeAlimentacao, 2, ',', '.')" prefix="R$" />
                 <x-dashboard-card
                     title="Total Mobilidade iFood"
                     :value="number_format($totalMobilidadeIfood, 2, ',', '.')"
                     prefix="R$"
                 />
                 <x-dashboard-card title="Total VT Ifood" :value="number_format($totalTransporteIfood, 2, ',', '.')" prefix="R$" />
-                <x-dashboard-card title="Média Vale Transporte/func." :value="number_format($avgBeneficioPorFuncionario, 2, ',', '.')" prefix="R$" />
-                <x-dashboard-card title="Média Vale Refeição/func." :value="number_format($avgIfoodPorFuncionario, 2, ',', '.')" prefix="R$" />
+                {{-- <x-dashboard-card title="Média Vale Transporte/func." :value="number_format($avgBeneficioPorFuncionario, 2, ',', '.')" prefix="R$" /> --}}
+                {{-- <x-dashboard-card title="Média Vale Refeição/func." :value="number_format($avgIfoodPorFuncionario, 2, ',', '.')" prefix="R$" /> --}}
                 <x-dashboard-card title="Funcionários Ativos" :value="$totalFuncionarios-$totalInativos" />
                 <x-dashboard-card
                     title="Funcionários demitidos no período"

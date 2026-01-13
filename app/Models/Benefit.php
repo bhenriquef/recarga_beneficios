@@ -25,7 +25,6 @@ class Benefit extends Model
 
     protected $casts = [
         'value' => 'decimal:2',
-        'birthday' => 'date',
     ];
 
     public function employees()

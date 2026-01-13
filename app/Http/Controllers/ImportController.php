@@ -19,7 +19,7 @@ class ImportController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'type' => 'required|in:funcionarios_vr,dados_reaproveitamento,vt_ifood_geral',
+            'type' => 'required|in:funcionarios_vr,dados_reaproveitamento,vt_ifood_geral,vale_alimentacao',
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
             'competence_month' => ['required', 'date_format:Y-m'],
         ]);
@@ -33,6 +33,7 @@ class ImportController extends Controller
             'funcionarios_vr' => 'planilha_vr_referencia',         // sem extensão aqui
             'dados_reaproveitamento' => 'dados_reaproveitamento',
             'vt_ifood_geral' => 'vt_ifood_geral',
+            'vale_alimentacao' => 'vale_alimentacao',
         ];
 
         $fileBase = $fileNameByType[$type] ?? ('import_' . now()->format('Ymd_His'));

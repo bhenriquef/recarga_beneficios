@@ -10,8 +10,9 @@ use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Illuminate\Support\Carbon;
+use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
 
-class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
+class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows, WithCalculatedFormulas
 {
 
     public function __construct(public string $competenceMonth) {} // "Y-m"
@@ -47,7 +48,7 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
                     'situacao'         => $this->asString($row[5] ?? null),
                     'loja'             => $this->asString($row[6] ?? null),
                     'departamento'     => $this->asString($row[10] ?? null),
-                    'cpf'              => $this->onlyDigits($row[12] ?? null),
+                    'cpf'              => $this->onlyDigits($row[1] ?? null),
 
                     // soma principal
                     'recarga_total'    => 0.0,
@@ -58,7 +59,7 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows
 
             // opcional: preencher campos se vierem vazios e aparecerem depois
             $grouped[$matriculaKey]['nome_completo'] = $grouped[$matriculaKey]['nome_completo'] ?? $this->asString($row[2] ?? null);
-            $grouped[$matriculaKey]['cpf']           = $grouped[$matriculaKey]['cpf']           ?? $this->onlyDigits($row[12] ?? null);
+            $grouped[$matriculaKey]['cpf']           = $grouped[$matriculaKey]['cpf']           ?? $this->onlyDigits($row[1] ?? null);
         }
 
         $Benefit = Benefit::where('cod', 'IFOOD')->first();

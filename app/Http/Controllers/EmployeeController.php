@@ -151,7 +151,10 @@ class EmployeeController extends Controller
         $mediaBeneficiosRow = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->where('eb.employee_id', $id)
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
             ->whereBetween('m.date', [$startDateStr, $endDateStr])
+            ->whereNull('m.deleted_at')
             ->selectRaw('
                 SUM(m.total_value) as total,
                 COUNT(DISTINCT DATE_FORMAT(m.date, "%Y-%m")) as meses
@@ -163,25 +166,40 @@ class EmployeeController extends Controller
             $mediaBeneficios = $mediaBeneficiosRow->total / $mediaBeneficiosRow->meses;
         }
 
+        $mediaIfoodRow = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->where('eb.employee_id', $id)
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->where('b.cod', 'VALE_ALIMENTACAO')
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
+            ->whereNull('m.deleted_at')
+            ->selectRaw('
+                SUM(m.total_value) as total,
+                COUNT(DISTINCT DATE_FORMAT(m.date, "%Y-%m")) as meses
+            ')
+            ->first();
 
-        // Média de iFood no período
-        $mediaIfood = DB::table('workdays')
-            ->where('employee_id', $id)
-            ->whereBetween('date', [$startDateStr, $endDateStr])
-            ->selectRaw('AVG(calc_days * 10) as media_ifood')
-            ->value('media_ifood') ?? 0;
-
-        // Total iFood no período
-        $totalIfood = DB::table('workdays')
-            ->where('employee_id', $id)
-            ->whereBetween('date', [$startDateStr, $endDateStr])
-            ->selectRaw('SUM(calc_days * 10) as total_ifood')
-            ->value('total_ifood') ?? 0;
+        $mediaIfood = 0;
+        if ($mediaIfoodRow && $mediaIfoodRow->meses > 0) {
+            $mediaIfood = $mediaIfoodRow->total / $mediaIfoodRow->meses;
+        }
 
         // Total benefícios no período
         $totalBeneficios = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
             ->where('eb.employee_id', $id)
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
+            ->whereNull('m.deleted_at')
+            ->sum('m.total_value') ?? 0;
+
+        $totalIfood = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->where('b.cod', 'VALE_ALIMENTACAO')
+            ->where('eb.employee_id', $id)
+            ->whereNull('m.deleted_at')
             ->whereBetween('m.date', [$startDateStr, $endDateStr])
             ->sum('m.total_value') ?? 0;
 
@@ -192,28 +210,63 @@ class EmployeeController extends Controller
             ->select('b.description', 'b.operator', 'eb.value', 'eb.qtd')
             ->get();
 
-        // Histórico mensal dentro do período
+        $sub1 = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->where('eb.employee_id', $id)
+            ->whereNull('m.deleted_at')
+            ->whereBetween('m.date', [$startDateStr, $endDateStr])
+            ->groupBy(DB::raw("DATE_FORMAT(m.date, '%m/%Y')"), 'eb.employee_id')
+            ->selectRaw("
+                eb.employee_id,
+                DATE_FORMAT(m.date, '%m/%Y') as mes,
+
+                SUM(CASE WHEN b.cod NOT IN ('IFOOD','MOBILIDADE','VALE_ALIMENTACAO')
+                    THEN COALESCE(m.total_value, 0) ELSE 0 END) as total_beneficios,
+
+                SUM(CASE WHEN b.cod NOT IN ('IFOOD','MOBILIDADE','VALE_ALIMENTACAO')
+                    THEN COALESCE(m.saved_value, 0) ELSE 0 END) as total_economizado,
+
+                SUM(CASE WHEN b.cod NOT IN ('IFOOD','MOBILIDADE','VALE_ALIMENTACAO')
+                    THEN COALESCE(m.accumulated_value, 0) ELSE 0 END) as total_acumulado,
+
+                SUM(CASE WHEN b.cod NOT IN ('IFOOD','MOBILIDADE','VALE_ALIMENTACAO')
+                    THEN COALESCE(m.final_value, 0) ELSE 0 END) as total_real,
+
+                SUM(CASE WHEN b.cod = 'IFOOD'
+                    THEN COALESCE(m.total_value, 0) ELSE 0 END) as total_ifood,
+
+                SUM(CASE WHEN b.cod = 'MOBILIDADE'
+                    THEN COALESCE(m.total_value, 0) ELSE 0 END) as total_mobilidade,
+
+                SUM(CASE WHEN b.cod = 'VALE_ALIMENTACAO'
+                    THEN COALESCE(m.total_value, 0) ELSE 0 END) as total_vale_alimentacao
+            ");
+
         $historico = DB::table('workdays as w')
+            ->leftJoinSub($sub1, 'sub1', function ($join) {
+                $join->on('sub1.employee_id', '=', 'w.employee_id')
+                    ->on(DB::raw("sub1.mes"), '=', DB::raw("DATE_FORMAT(w.date, '%m/%Y')"));
+            })
             ->where('w.employee_id', $id)
             ->whereBetween('w.date', [$startDateStr, $endDateStr])
+            ->groupBy(DB::raw("DATE_FORMAT(w.date, '%m/%Y')"), 'w.employee_id')
+            ->orderByRaw("MIN(w.date) ASC")
             ->selectRaw("
                 DATE_FORMAT(w.date, '%m/%Y') as mes,
                 w.employee_id,
                 ROUND(AVG(w.calc_days), 1) as dias_calculados,
                 ROUND(AVG(w.worked_days), 1) as dias_trabalhados_mes_anterior,
                 SUM(w.business_days) as dias_uteis,
-                SUM(w.calc_days * 10) as total_ifood,
-                (
-                    SELECT COALESCE(SUM(m.total_value), 0)
-                    FROM employees_benefits_monthly m
-                    JOIN employees_benefits eb ON eb.id = m.employee_benefit_id
-                    WHERE eb.employee_id = w.employee_id
-                    AND m.date BETWEEN '{$startDateStr}' AND '{$endDateStr}'
-                    AND DATE_FORMAT(m.date, '%m/%Y') = DATE_FORMAT(w.date, '%m/%Y')
-                ) as total_beneficios
+
+                MAX(COALESCE(sub1.total_beneficios, 0)) as total_beneficios,
+                MAX(COALESCE(sub1.total_economizado, 0)) as total_economizado,
+                MAX(COALESCE(sub1.total_acumulado, 0)) as total_acumulado,
+                MAX(COALESCE(sub1.total_real, 0)) as total_real,
+                MAX(COALESCE(sub1.total_ifood, 0)) as total_ifood,
+                MAX(COALESCE(sub1.total_mobilidade, 0)) as total_mobilidade,
+                MAX(COALESCE(sub1.total_vale_alimentacao, 0)) as total_vale_alimentacao
             ")
-            ->groupBy('w.employee_id', 'w.date')
-            ->orderByRaw("w.date ASC")
             ->get();
 
         $historicoTabela = $historico->sortByDesc(function ($item) {

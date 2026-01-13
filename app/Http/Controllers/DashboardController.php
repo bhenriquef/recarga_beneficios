@@ -89,14 +89,31 @@ class DashboardController extends Controller
         $totalBeneficios = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->join('employees as e', 'eb.employee_id', '=', 'e.id')
+            ->where('e.active', 1)
             ->whereDate('m.date', $refDate)
-            ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD'])
+            ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
+            ->selectRaw('sum(m.total_value) as total_calculado, sum(m.saved_value) as total_economizado, sum(m.final_value) as total_real')
+            ->first();
+
+        $totalReal = $totalBeneficios->total_real;
+        $totalEconomizado = $totalBeneficios->total_economizado;
+        $totalBeneficios = $totalBeneficios->total_calculado;
+
+        $totalValeAlimentacao = DB::table('employees_benefits_monthly as m')
+            ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->join('employees as e', 'eb.employee_id', '=', 'e.id')
+            ->where('e.active', 1)
+            ->whereDate('m.date', $refDate)
+            ->where('b.cod', 'VALE_ALIMENTACAO')
             ->sum('m.total_value');
 
-        // 3.1) Total Mobilidade iFood (benefits.cod = MOBILIDADE)
         $totalMobilidadeIfood = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->join('employees as e', 'eb.employee_id', '=', 'e.id')
+            ->where('e.active', 1)
             ->whereDate('m.date', $refDate)
             ->where('b.cod', 'MOBILIDADE')
             ->sum('m.total_value');
@@ -104,21 +121,16 @@ class DashboardController extends Controller
         $totalTransporteIfood = DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->join('employees as e', 'eb.employee_id', '=', 'e.id')
+            ->where('e.active', 1)
             ->whereDate('m.date', $refDate)
             ->where('b.cod', 'IFOOD')
             ->sum('m.total_value');
 
         // 3.2) Funcionários demitidos no período (shutdown_date)
         $totalDemitidosMes = Employee::whereNotNull('shutdown_date')
-            ->whereBetween('shutdown_date', [$inicio->copy()->subMonth()->startOfMonth()->format('Y-m-d'), $fim->copy()->subMonth(2)->endOfMonth()->format('Y-m-d')])
+            ->whereBetween('shutdown_date', [$inicio->copy()->startOfMonth()->format('Y-m-d'), $fim->copy()->subMonth(1)->endOfMonth()->format('Y-m-d')])
             ->count();
-
-        // 4) Total iFood (exemplo com calc_days * 10)
-        $totalIfood = Workday::join('employees as e', 'e.id', '=', 'workdays.employee_id')
-            ->where('e.active', true)
-            ->whereDate('date', $refDate)
-            ->sum('calc_days');
-        $totalIfood = (int) $totalIfood * 10;
 
         // 5) Média de benefício por funcionário
         $avgBeneficioPorFuncionario = DB::query()
@@ -126,6 +138,8 @@ class DashboardController extends Controller
                 $sub->from('employees_benefits_monthly as m')
                     ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
                     ->join('employees as e', 'eb.employee_id', '=', 'e.id')
+                    ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+                    ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
                     ->whereDate('m.date', $refDate)
                     ->where('e.active', true)
                     ->selectRaw('eb.employee_id, SUM(m.total_value) as total_por_func')
@@ -135,8 +149,8 @@ class DashboardController extends Controller
 
         // 6) Média de iFood por funcionário
         $avgIfoodPorFuncionario = 0;
-        if ($totalFuncionarios > 0 && $totalIfood > 0) {
-            $avgIfoodPorFuncionario = $totalIfood / ($totalFuncionarios - $totalInativos);
+        if ($totalFuncionarios > 0 && $totalValeAlimentacao > 0) {
+            $avgIfoodPorFuncionario = $totalValeAlimentacao / ($totalFuncionarios - $totalInativos);
         }
 
         // 7) Média do número de passagens por funcionário (VR)
@@ -155,6 +169,7 @@ class DashboardController extends Controller
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->whereDate('m.date', $refDate)
             ->where('e.active', true)
+            ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
             ->select('b.description', DB::raw('SUM(m.total_value) as total'))
             ->groupBy('b.description')
             ->orderByDesc('total')
@@ -251,6 +266,7 @@ class DashboardController extends Controller
                     ->whereDate('m.date', $refDate);
             })
             ->leftJoin('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->where('e.active', 1)
             ->groupBy('c.id', 'c.name')
             ->select(
                 'c.id as company_id',
@@ -285,7 +301,7 @@ class DashboardController extends Controller
         $demitidos = DB::table('employees as e')
             ->join('companies as c', 'c.id', '=', 'e.company_id')
             ->whereNotNull('e.shutdown_date')
-            ->whereBetween('e.shutdown_date', [$inicio->copy()->subMonth()->startOfMonth()->format('Y-m-d'), $fim->copy()->subMonth(2)->endOfMonth()->format('Y-m-d')])
+            ->whereBetween('e.shutdown_date', [$inicio->copy()->startOfMonth()->format('Y-m-d'), $fim->copy()->subMonth(1)->endOfMonth()->format('Y-m-d')])
             ->select('e.id', 'e.full_name', 'e.shutdown_date', 'c.name as company_name')
             ->orderByDesc('e.shutdown_date')
             ->get();
@@ -348,7 +364,9 @@ class DashboardController extends Controller
 
             'funcsDiasDiferentes'        => $funcsDiasDiferentes,
             'totalBeneficios'            => $fmt($totalBeneficios),
-            'totalIfood'                 => $fmt($totalIfood),
+            'totalReal'                  => $fmt($totalReal),
+            'totalEconomizado'           => $fmt($totalEconomizado),
+            'totalValeAlimentacao'                 => $fmt($totalValeAlimentacao),
             'avgBeneficioPorFuncionario' => $fmt($avgBeneficioPorFuncionario),
             'avgIfoodPorFuncionario'     => $fmt($avgIfoodPorFuncionario),
             'avgPassagensPorFuncionario' => $fmt($avgPassagensPorFuncionario),
