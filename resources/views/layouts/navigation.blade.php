@@ -102,6 +102,7 @@
                                             <option value="dados_reaproveitamento">Dados Reaproveitamento</option>
                                             <option value="vt_ifood_geral">Planilha Geral VT (iFood)</option>
                                             <option value="vale_alimentacao">Vale Alimentação</option>
+                                            <option value="recem_admitidos">Recem Admitidos</option>
                                             {{-- <option value="saldo_livre_ifood">Saldo Livre Ifood</option>
                                             <option value="saldo_mobilidade_ifood">Saldo Mobilidade Ifood</option> --}}
                                         </select>

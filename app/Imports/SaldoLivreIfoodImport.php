@@ -34,10 +34,6 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows, WithCalcula
             $matricula = $this->asString($row[1] ?? null);
             $matriculaKey = $this->normalizeKey($matricula);
 
-            if (!$matriculaKey) {
-                continue;
-            }
-
             $recargaTotal = $this->asMoney($row[65] ?? null) ?? 0.0;
 
             if (!isset($grouped[$matriculaKey])) {
@@ -73,8 +69,10 @@ class SaldoLivreIfoodImport implements ToCollection, SkipsEmptyRows, WithCalcula
             $base->copy()->endOfMonth()
         );
 
-        foreach ($grouped as $item) {
-            $Employee = Employee::where('cpf', $item['cpf'])->first();
+        foreach ($grouped as $index => $item) {
+            $Employee = Employee::where(function($query) use ($item){
+                $query->where('cpf', $item['cpf'])->orWhere('full_name', 'like', '%'.$item['nome_completo'].'%');
+            })->first();
 
             if (!$Employee) {
                 $Employee = Employee::create([

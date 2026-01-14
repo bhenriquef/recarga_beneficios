@@ -113,7 +113,7 @@ class DashboardController extends Controller
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->join('employees as e', 'eb.employee_id', '=', 'e.id')
-            ->where('e.active', 1)
+            // ->where('e.active', 1)
             ->whereDate('m.date', $refDate)
             ->where('b.cod', 'MOBILIDADE')
             ->sum('m.total_value');
@@ -122,7 +122,7 @@ class DashboardController extends Controller
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->join('employees as e', 'eb.employee_id', '=', 'e.id')
-            ->where('e.active', 1)
+            // ->where('e.active', 1)
             ->whereDate('m.date', $refDate)
             ->where('b.cod', 'IFOOD')
             ->sum('m.total_value');
@@ -141,7 +141,7 @@ class DashboardController extends Controller
                     ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
                     ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
                     ->whereDate('m.date', $refDate)
-                    ->where('e.active', true)
+                    // ->where('e.active', true)
                     ->selectRaw('eb.employee_id, SUM(m.total_value) as total_por_func')
                     ->groupBy('eb.employee_id');
             }, 't')
@@ -159,7 +159,7 @@ class DashboardController extends Controller
             ->join('employees as e', 'eb.employee_id', '=', 'e.id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->whereDate('m.date', $refDate)
-            ->where('e.active', true)
+            // ->where('e.active', true)
             ->avg('m.qtd');
 
         // Top 10 benefícios mais utilizados no mês
@@ -168,7 +168,7 @@ class DashboardController extends Controller
             ->join('employees as e', 'eb.employee_id', '=', 'e.id')
             ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
             ->whereDate('m.date', $refDate)
-            ->where('e.active', true)
+            // ->where('e.active', true)
             ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
             ->select('b.description', DB::raw('SUM(m.total_value) as total'))
             ->groupBy('b.description')
@@ -201,7 +201,7 @@ class DashboardController extends Controller
             ->join('employees as e', 'e.id', '=', 'w.employee_id')
             ->join('companies as c', 'c.id', '=', 'e.company_id')
             ->whereDate('w.date', $refDate)
-            ->where('e.active', true)
+            // ->where('e.active', true)
             ->groupBy('c.id', 'c.name')
             ->select(
                 'c.id as company_id',
@@ -221,7 +221,7 @@ class DashboardController extends Controller
             ->join('employees as e', 'e.id', '=', 'w.employee_id')
             ->join('companies as c', 'c.id', '=', 'e.company_id')
             ->whereDate('w.date', $refDate)
-            ->where('e.active', true)
+            // ->where('e.active', true)
             ->groupBy('c.id', 'c.name')
             ->select(
                 'c.id as company_id',
@@ -245,7 +245,7 @@ class DashboardController extends Controller
             ->join('employees as e', 'e.id', '=', 'eb.employee_id')
             ->join('companies as c', 'c.id', '=', 'e.company_id')
             ->whereDate('m.date', $refDate)
-            ->where('e.active', true)
+            // ->where('e.active', true)
             ->groupBy('e.id', 'e.full_name', 'c.name')
             ->select(
                 'e.id',

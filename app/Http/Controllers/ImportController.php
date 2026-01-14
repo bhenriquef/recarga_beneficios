@@ -12,6 +12,7 @@ use App\Imports\SaldoMobilidadeIfoodImport;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use App\Imports\PlanilhaGeralVTImport;
+use App\Imports\RecemAdmitidosImport;
 use App\Imports\ValeAlimentacaoImport;
 
 class ImportController extends Controller
@@ -19,7 +20,7 @@ class ImportController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'type' => 'required|in:funcionarios_vr,dados_reaproveitamento,vt_ifood_geral,vale_alimentacao',
+            'type' => 'required|in:funcionarios_vr,dados_reaproveitamento,vt_ifood_geral,vale_alimentacao,recem_admitidos',
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
             'competence_month' => ['required', 'date_format:Y-m'],
         ]);
@@ -34,6 +35,7 @@ class ImportController extends Controller
             'dados_reaproveitamento' => 'dados_reaproveitamento',
             'vt_ifood_geral' => 'vt_ifood_geral',
             'vale_alimentacao' => 'vale_alimentacao',
+            'recem_admitidos' => 'recem_admitidos',
         ];
 
         $fileBase = $fileNameByType[$type] ?? ('import_' . now()->format('Ymd_His'));
@@ -60,6 +62,10 @@ class ImportController extends Controller
                     break;
                 case 'vale_alimentacao':
                     $import = new ValeAlimentacaoImport($request->competence_month);
+                    Excel::import($import, $fullPath);
+                    break;
+                case 'recem_admitidos':
+                    $import = new RecemAdmitidosImport($request->competence_month);
                     Excel::import($import, $fullPath);
                     break;
             }
