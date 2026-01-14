@@ -74,7 +74,6 @@ class SyncDatabase extends Command
         // for($u = 0; $u < 6; $u++){
         //     echo "teste: ".$u;
             Log::info('Entrou no handle() do sync:database');
-            echo "teste";
 
             $isStream = $this->option('stream');
 

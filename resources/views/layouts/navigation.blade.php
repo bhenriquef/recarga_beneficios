@@ -98,8 +98,8 @@
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de planilha</label>
                                         <select required name="type" class="block w-full rounded border-gray-300">
                                             <option value="" selected disabled>Selecione...</option>
-                                            <option value="funcionarios_vr">Funcionarios VR</option>
-                                            <option value="dados_reaproveitamento">Dados Reaproveitamento</option>
+                                            <option value="funcionarios_vr">Pedido VR</option>
+                                            <option value="dados_reaproveitamento">Controle gestão de saldo</option>
                                             <option value="vt_ifood_geral">Planilha Geral VT (iFood)</option>
                                             <option value="vale_alimentacao">Vale Alimentação</option>
                                             <option value="recem_admitidos">Recem Admitidos</option>
