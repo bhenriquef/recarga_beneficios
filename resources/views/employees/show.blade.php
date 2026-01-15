@@ -246,12 +246,8 @@
                     </div>
 
                     <div class="mt-4">
-                        <p class="text-sm text-gray-600 mb-2">
-                            <strong>Detalhes do value_base</strong> (somatório do mês usando: <code>final_value</code> quando existe e é diferente de 0, senão <code>total_value</code>):
-                        </p>
-
                         @if($perdaDemissaoBeneficios->isEmpty())
-                            <p class="text-sm text-gray-500">Nenhum benefício mensal encontrado para compor o value_base.</p>
+                            <p class="text-sm text-gray-500">Nenhum benefício mensal encontrado para compor o valor base.</p>
                         @else
                             <div class="overflow-x-auto">
                                 <table class="min-w-full text-sm">
