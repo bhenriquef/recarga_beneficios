@@ -56,6 +56,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/imports/logs/{file}', [ImportController::class, 'downloadLog'])
     ->name('imports.logs.download');
+
+    Route::get('/dashboard/export/{type}', [DashboardController::class, 'export'])
+    ->name('dashboard.export');
 });
 
 require __DIR__.'/auth.php';

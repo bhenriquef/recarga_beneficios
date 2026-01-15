@@ -100,6 +100,13 @@
 
                     @if($gastosPorEmpresa->isNotEmpty())
                         <div class="flex items-center gap-2">
+                            <a
+                                href="{{ route('dashboard.export', ['type' => 'gastos-empresa'] + request()->query()) }}"
+                                class="inline-flex items-center px-3 py-2 rounded-md text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                                Baixar relatório
+                            </a>
+
                             <input
                                 id="filter-gastos-empresa"
                                 type="text"
@@ -191,6 +198,13 @@
 
                     @if($demitidosComPerda->isNotEmpty())
                         <div class="flex items-center gap-2">
+                            <a
+                                href="{{ route('dashboard.export', ['type' => 'demitidos-perda'] + request()->query()) }}"
+                                class="inline-flex items-center px-3 py-2 rounded-md text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                                Baixar relatório
+                            </a>
+
                             <input
                                 id="filter-demitidos-perda"
                                 type="text"
@@ -208,11 +222,12 @@
                         <table id="table-demitidos-perda" class="min-w-full text-sm">
                             <thead>
                                 <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase">
-                                    <th class="px-4 py-2">Empresa</th>
+                                    {{-- <th class="px-4 py-2">Empresa</th> --}}
                                     <th class="px-4 py-2">Funcionário</th>
-                                    <th class="px-4 py-2">Data demissão</th>
+                                    <th class="px-4 py-2">Data Demissão</th>
+                                    {{-- <th class="px-4 py-2">Dias Estimados</th> --}}
                                     <th class="px-4 py-2">Dias úteis restantes (Seg–Sáb)</th>
-                                    <th class="px-4 py-2">Valor base</th>
+                                    <th class="px-4 py-2">Valor Recebido</th>
                                     <th class="px-4 py-2">Perda estimada</th>
                                     <th class="px-4 py-2 text-right">Ações</th>
                                 </tr>
@@ -220,9 +235,10 @@
                             <tbody class="divide-y divide-gray-100">
                                 @foreach($demitidosComPerda as $row)
                                     <tr>
-                                        <td class="px-4 py-2">{{ $row->company_name }}</td>
+                                        {{-- <td class="px-4 py-2">{{ $row->company_name }}</td> --}}
                                         <td class="px-4 py-2">{{ $row->full_name }}</td>
                                         <td class="px-4 py-2">{{ $row->shutdown_date }}</td>
+                                        {{-- <td class="px-4 py-2">{{ number_format($row->dias_trabalhados, 0) }}</td> --}}
                                         <td class="px-4 py-2">{{ $row->dias_uteis_restantes }}</td>
 
                                         <td class="px-4 py-2">
@@ -273,6 +289,13 @@
 
                     @if($funcionariosBeneficioAlto->isNotEmpty())
                         <div class="flex items-center gap-2">
+                            <a
+                                href="{{ route('dashboard.export', ['type' => 'beneficio-alto'] + request()->query()) }}"
+                                class="inline-flex items-center px-3 py-2 rounded-md text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                                Baixar relatório
+                            </a>
+
                             <input
                                 id="filter-beneficio-alto"
                                 type="text"

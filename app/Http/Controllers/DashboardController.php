@@ -7,6 +7,9 @@ use Carbon\Carbon;
 use App\Models\Employee;
 use App\Models\Workday;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class DashboardController extends Controller
 {
@@ -239,13 +242,192 @@ class DashboardController extends Controller
 
         // D) Funcionários com gasto de benefício > limite
         $limiteBeneficioAlto = 500; // depois virá de config
+        $funcionariosBeneficioAlto = $this->getFuncionariosBeneficioAlto($refDate, $limiteBeneficioAlto);
+        $gastosPorEmpresa = $this->getGastosPorEmpresa($refDate);
+        $demitidosComPerda = $this->getDemitidosComPerda($inicio, $fim, $refDate);
 
-        $funcionariosBeneficioAlto = DB::table('employees_benefits_monthly as m')
+        // Arredonda melhor para exibição
+        $fmt = fn ($v) => is_null($v) ? 0 : (float) $v;
+
+        return view('dashboard', [
+            'refMes'   => $refMes,
+            'mesAtual' => $mesAtual,
+            'meses'    => $meses,
+            'anos'     => $anos,
+            'anoAtual' => $anoSelecionado,
+
+            'funcsDiasDiferentes'        => $funcsDiasDiferentes,
+            'totalBeneficios'            => $fmt($totalBeneficios),
+            'totalReal'                  => $fmt($totalReal),
+            'totalEconomizado'           => $fmt($totalEconomizado),
+            'totalValeAlimentacao'                 => $fmt($totalValeAlimentacao),
+            'avgBeneficioPorFuncionario' => $fmt($avgBeneficioPorFuncionario),
+            'avgIfoodPorFuncionario'     => $fmt($avgIfoodPorFuncionario),
+            'avgPassagensPorFuncionario' => $fmt($avgPassagensPorFuncionario),
+            'totalFuncionarios'          => $totalFuncionarios,
+            'totalInativos'              => $totalInativos,
+            'topBeneficios'              => $topBeneficios,
+
+            'funcSemVR'                  => $funcSemVR,
+            'topEmpresasPresencaMaior'   => $topEmpresasPresencaMaior,
+            'topEmpresasPresencaMenor'   => $topEmpresasPresencaMenor,
+            'funcionariosBeneficioAlto'  => $funcionariosBeneficioAlto,
+            'limiteBeneficioAlto'        => $limiteBeneficioAlto,
+            'totalMobilidadeIfood' => $fmt($totalMobilidadeIfood),
+            'totalDemitidosMes'    => $totalDemitidosMes,
+            'totalTransporteIfood' => $totalTransporteIfood,
+            'gastosPorEmpresa' => $gastosPorEmpresa,
+            'demitidosComPerda' => $demitidosComPerda,
+        ]);
+    }
+
+    private function resolveDashboardPeriod(Request $request): array
+    {
+        $today = Carbon::today();
+        $base  = $today->day >= 16 ? $today->copy()->addMonth() : $today->copy();
+
+        $anosQuery = DB::table('workdays')
+            ->selectRaw('YEAR(date) as ano')
+            ->distinct()
+            ->union(
+                DB::table('employees_benefits_monthly')
+                    ->selectRaw('YEAR(date) as ano')
+                    ->distinct()
+            );
+
+        $anos = DB::query()
+            ->fromSub($anosQuery, 'anos')
+            ->select('ano')
+            ->orderBy('ano', 'desc')
+            ->pluck('ano')
+            ->toArray();
+
+        if (empty($anos)) {
+            $anos = [$today->year];
+        }
+
+        $requestedAno = $request->get('y');
+        if ($requestedAno && in_array((int) $requestedAno, $anos, true)) {
+            $anoSelecionado = (int) $requestedAno;
+        } else {
+            $anoSelecionado = in_array($base->year, $anos, true) ? $base->year : max($anos);
+        }
+
+        $mesSelecionado = (int) ($request->get('m') ?? $base->format('m'));
+
+        $inicio = Carbon::createFromDate($anoSelecionado, $mesSelecionado, 1)->startOfDay();
+        $fim    = $inicio->copy()->addMonth()->endOfMonth()->endOfDay();
+
+        $refDate = $inicio->copy()->startOfMonth()->format('Y-m-d');
+
+        return [$inicio, $fim, $refDate, $mesSelecionado, $anoSelecionado];
+    }
+
+    public function export(Request $request, string $type): StreamedResponse
+    {
+        [$inicio, $fim, $refDate, $mesSelecionado, $anoSelecionado] = $this->resolveDashboardPeriod($request);
+
+        $limiteBeneficioAlto = 500;
+
+        switch ($type) {
+            case 'gastos-empresa':
+                $rows = $this->getGastosPorEmpresa($refDate);
+                $title = 'Gastos por empresa';
+                $headers = ['Empresa', 'Mobilidade iFood', 'VT iFood', 'Valor calculado', 'Valor economizado', 'Valor recarga'];
+                $data = $rows->map(fn($r) => [
+                    $r->company_name,
+                    (float) ($r->mobilidade_total ?? 0),
+                    (float) ($r->ifood_vt_total ?? 0),
+                    (float) ($r->valor_calculado ?? 0),
+                    (float) ($r->valor_economizado ?? 0),
+                    (float) ($r->valor_recarga ?? 0),
+                ])->toArray();
+                break;
+
+            case 'demitidos-perda':
+                $rows = $this->getDemitidosComPerda($inicio, $fim, $refDate);
+                $title = 'Funcionários demitidos com perdas';
+                $headers = ['Empresa', 'Funcionário', 'Data demissão', 'Dias úteis restantes (Seg–Sáb)', 'Valor recebido', 'Perda estimada'];
+                $data = $rows->map(fn($r) => [
+                    $r->company_name,
+                    $r->full_name,
+                    $r->shutdown_date,
+                    (int) $r->dias_uteis_restantes,
+                    (float) $r->value_base,
+                    (float) $r->perda_estimada,
+                ])->toArray();
+                break;
+
+            case 'beneficio-alto':
+                $rows = $this->getFuncionariosBeneficioAlto($refDate, $limiteBeneficioAlto);
+                $title = "Funcionários com VT acima de {$limiteBeneficioAlto}";
+                $headers = ['Empresa', 'Funcionário', 'Total Benefícios (R$)'];
+                $data = $rows->map(fn($r) => [
+                    $r->company_name,
+                    $r->full_name,
+                    (float) $r->total_beneficios,
+                ])->toArray();
+                break;
+
+            default:
+                abort(404);
+        }
+
+        return $this->downloadExcel($type, $title, $headers, $data, $anoSelecionado, $mesSelecionado);
+    }
+
+    private function downloadExcel(
+        string $type,
+        string $title,
+        array $headers,
+        array $data,
+        int $anoSelecionado,
+        int $mesSelecionado
+    ): StreamedResponse {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Relatório');
+
+        $sheet->setCellValue('A1', $title);
+        $sheet->mergeCellsByColumnAndRow(1, 1, count($headers), 1);
+
+        $rowIndex = 3;
+        foreach ($headers as $i => $h) {
+            $sheet->setCellValueByColumnAndRow($i + 1, $rowIndex, $h);
+        }
+
+        $rowIndex = 4;
+        foreach ($data as $line) {
+            foreach ($line as $col => $value) {
+                $sheet->setCellValueByColumnAndRow($col + 1, $rowIndex, $value);
+            }
+            $rowIndex++;
+        }
+
+        for ($col = 1; $col <= count($headers); $col++) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $mes = str_pad((string)$mesSelecionado, 2, '0', STR_PAD_LEFT);
+        $fileName = "dashboard_{$type}_{$anoSelecionado}-{$mes}.xlsx";
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function getFuncionariosBeneficioAlto(string $refDate, float $limiteBeneficioAlto)
+    {
+        return DB::table('employees_benefits_monthly as m')
             ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
             ->join('employees as e', 'e.id', '=', 'eb.employee_id')
             ->join('companies as c', 'c.id', '=', 'e.company_id')
+            ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+            ->whereNotIn('b.cod', ['MOBILIDADE', 'IFOOD', 'VALE_ALIMENTACAO'])
             ->whereDate('m.date', $refDate)
-            // ->where('e.active', true)
             ->groupBy('e.id', 'e.full_name', 'c.name')
             ->select(
                 'e.id',
@@ -256,9 +438,11 @@ class DashboardController extends Controller
             ->having('total_beneficios', '>', $limiteBeneficioAlto)
             ->orderByDesc('total_beneficios')
             ->get();
+    }
 
-        // E) Gastos por empresa (MOBILIDADE / IFOOD / total_value / accumulated_value / final_value)
-        $gastosPorEmpresa = DB::table('companies as c')
+    private function getGastosPorEmpresa(string $refDate)
+    {
+        return DB::table('companies as c')
             ->leftJoin('employees as e', 'e.company_id', '=', 'c.id')
             ->leftJoin('employees_benefits as eb', 'eb.employee_id', '=', 'e.id')
             ->leftJoin('employees_benefits_monthly as m', function ($join) use ($refDate) {
@@ -296,12 +480,17 @@ class DashboardController extends Controller
             ")
             ->orderByDesc('valor_recarga')
             ->get();
+    }
 
-        // F) Funcionários demitidos com perdas estimadas
+    private function getDemitidosComPerda(Carbon $inicio, Carbon $fim, string $refDate)
+    {
         $demitidos = DB::table('employees as e')
             ->join('companies as c', 'c.id', '=', 'e.company_id')
             ->whereNotNull('e.shutdown_date')
-            ->whereBetween('e.shutdown_date', [$inicio->copy()->startOfMonth()->format('Y-m-d'), $fim->copy()->subMonth(1)->endOfMonth()->format('Y-m-d')])
+            ->whereBetween('e.shutdown_date', [
+                $inicio->copy()->startOfMonth()->format('Y-m-d'),
+                $fim->copy()->subMonth(1)->endOfMonth()->format('Y-m-d')
+            ])
             ->select('e.id', 'e.full_name', 'e.shutdown_date', 'c.name as company_name')
             ->orderByDesc('e.shutdown_date')
             ->get();
@@ -309,32 +498,33 @@ class DashboardController extends Controller
         $demitidosComPerda = $demitidos->map(function ($emp) use ($refDate) {
             $shutdown = Carbon::parse($emp->shutdown_date)->startOfDay();
 
-            // fim do mês da demissão (calendário)
-            $endOfMonth = $shutdown->copy()->endOfMonth()->startOfDay();
+            $startOfMonth = $shutdown->copy()->startOfMonth()->startOfDay();
+            $endOfMonth   = $shutdown->copy()->endOfMonth()->startOfDay();
 
-            // conta dias úteis Seg–Sáb a partir do dia seguinte à demissão
             $cursor = $shutdown->copy()->addDay();
             $diasUteisRestantes = 0;
 
             while ($cursor->lte($endOfMonth)) {
-                // Carbon: Sunday = 0 (ou isSunday())
                 if (!$cursor->isSunday()) {
                     $diasUteisRestantes++;
                 }
                 $cursor->addDay();
             }
 
-            // Soma do "value" no mês de referência (refDate) para esse funcionário
-            // (um funcionário pode ter vários benefícios)
             $benef = DB::table('employees_benefits_monthly as m')
                 ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
                 ->whereDate('m.date', $refDate)
                 ->where('eb.employee_id', $emp->id)
-                ->selectRaw('SUM(m.value) as soma_value, SUM(CASE WHEN m.value IS NOT NULL THEN 1 ELSE 0 END) as cnt_value')
+                ->selectRaw('
+                    SUM(CASE WHEN m.final_value IS NOT NULL AND m.final_value <> 0 THEN m.final_value ELSE m.total_value END) as soma_value,
+                    AVG(m.work_days) as dias_trabalhados
+                ')
                 ->first();
 
             $somaValue = $benef?->soma_value;
-            $cntValue  = (int) ($benef?->cnt_value ?? 0);
+            $diasTrabalhados = $benef?->dias_trabalhados ?: 1;
+
+            $diasUteis = calcularDiasUteisComSabado($startOfMonth, $endOfMonth);
 
             return (object) [
                 'id' => $emp->id,
@@ -342,48 +532,14 @@ class DashboardController extends Controller
                 'full_name' => $emp->full_name,
                 'shutdown_date' => $shutdown->format('d/m/Y'),
                 'dias_uteis_restantes' => $diasUteisRestantes,
-
-                'value_base' => $cntValue > 0 ? (float) $somaValue : null,
-                'perda_estimada' => $cntValue > 0 ? ((float) $somaValue * $diasUteisRestantes) : null,
+                'dias_trabalhados' => $diasTrabalhados,
+                'value_base' => $benef?->soma_value,
+                'perda_estimada' => (float) (($somaValue / $diasUteis) * $diasUteisRestantes),
             ];
         });
 
-        $demitidosComPerda = $demitidosComPerda
-        ->filter(fn ($row) => !is_null($row->value_base))
-        ->values();
-
-        // Arredonda melhor para exibição
-        $fmt = fn ($v) => is_null($v) ? 0 : (float) $v;
-
-        return view('dashboard', [
-            'refMes'   => $refMes,
-            'mesAtual' => $mesAtual,
-            'meses'    => $meses,
-            'anos'     => $anos,
-            'anoAtual' => $anoSelecionado,
-
-            'funcsDiasDiferentes'        => $funcsDiasDiferentes,
-            'totalBeneficios'            => $fmt($totalBeneficios),
-            'totalReal'                  => $fmt($totalReal),
-            'totalEconomizado'           => $fmt($totalEconomizado),
-            'totalValeAlimentacao'                 => $fmt($totalValeAlimentacao),
-            'avgBeneficioPorFuncionario' => $fmt($avgBeneficioPorFuncionario),
-            'avgIfoodPorFuncionario'     => $fmt($avgIfoodPorFuncionario),
-            'avgPassagensPorFuncionario' => $fmt($avgPassagensPorFuncionario),
-            'totalFuncionarios'          => $totalFuncionarios,
-            'totalInativos'              => $totalInativos,
-            'topBeneficios'              => $topBeneficios,
-
-            'funcSemVR'                  => $funcSemVR,
-            'topEmpresasPresencaMaior'   => $topEmpresasPresencaMaior,
-            'topEmpresasPresencaMenor'   => $topEmpresasPresencaMenor,
-            'funcionariosBeneficioAlto'  => $funcionariosBeneficioAlto,
-            'limiteBeneficioAlto'        => $limiteBeneficioAlto,
-            'totalMobilidadeIfood' => $fmt($totalMobilidadeIfood),
-            'totalDemitidosMes'    => $totalDemitidosMes,
-            'totalTransporteIfood' => $totalTransporteIfood,
-            'gastosPorEmpresa' => $gastosPorEmpresa,
-            'demitidosComPerda' => $demitidosComPerda,
-        ]);
+        return $demitidosComPerda
+            ->filter(fn ($row) => !is_null($row->value_base))
+            ->values();
     }
 }

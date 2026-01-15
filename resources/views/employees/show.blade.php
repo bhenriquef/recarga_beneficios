@@ -21,13 +21,15 @@
                 </p>
                 <p><strong>CPF:</strong> {{ $employee->cpf ?? 'Não Informado' }}</p>
                 <p><strong>Código Solides:</strong> {{ $employee->cod_solides ?? 'Não Informado' }}</p>
-                <p><strong>Código VR:</strong> {{ $employee->cod_vr ?? 'Não Informado' }}</p>
 
                 <p>
                     <strong>Status:</strong>
                     <span class="{{ $employee->active ? 'text-green-600' : 'text-red-600' }}">
                         {{ $employee->active ? 'Ativo' : 'Inativo' }}
                     </span>
+                </p>
+                <p><strong>Data de Demissão:</strong>
+                    {{ $employee->shutdown_date ? \Carbon\Carbon::parse($employee->shutdown_date)->format('d/m/Y') : ($employee->active ? 'Usuario não demitido' : 'Não Informado') }}
                 </p>
                 <p>
                     <strong>Tempo de empresa:</strong>
@@ -168,6 +170,124 @@
                     </div>
                 @endif
             </div>
+
+            <h3 class="text-lg font-semibold text-gray-700 mb-3">Perda estimada na demissão</h3>
+
+            <div class="bg-white rounded-lg shadow p-4 mb-8">
+                @if(is_null($perdaDemissao))
+                    <p class="text-sm text-gray-500">
+                        Nenhuma perda estimada para este funcionário (sem data de demissão ou sem recargas no mês de referência).
+                    </p>
+                @else
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                            <p class="text-xs text-gray-500 uppercase">Mês de referência</p>
+                            <p class="text-lg font-semibold text-gray-800">{{ $perdaDemissao->mes_referencia_label }}</p>
+                            <p class="text-sm text-gray-600 mt-1">
+                                Período: {{ $perdaDemissao->periodo_inicio }} a {{ $perdaDemissao->periodo_fim }}
+                            </p>
+                        </div>
+
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                            <p class="text-xs text-gray-500 uppercase">Demissão</p>
+                            <p class="text-lg font-semibold text-gray-800">{{ $perdaDemissao->shutdown_date }}</p>
+                            <p class="text-sm text-gray-600 mt-1">
+                                Dias úteis restantes (Seg–Sáb): <strong>{{ $perdaDemissao->dias_uteis_restantes }}</strong>
+                            </p>
+                        </div>
+
+                        <div class="bg-rose-50 border border-rose-200 rounded-lg p-4">
+                            <p class="text-xs text-rose-700 uppercase">Perda estimada</p>
+                            <p class="text-2xl font-semibold text-rose-700">
+                                R$ {{ number_format($perdaDemissao->perda_estimada, 2, ',', '.') }}
+                            </p>
+                            <p class="text-sm text-rose-700 mt-1">
+                                Base: R$ {{ number_format($perdaDemissao->value_base, 2, ',', '.') }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="text-sm text-gray-700 space-y-2 mb-4">
+                        <p>
+                            <strong>Como calculamos:</strong>
+                            Consideramos o total recarregado no mês (valor base) e distribuímos pelos dias úteis do mês (Seg–Sáb).
+                            Depois multiplicamos pelos dias úteis restantes após a demissão.
+                        </p>
+
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
+                            <p class="text-gray-700">
+                                <strong>Fórmula:</strong>
+                                perda estimada = (valor base ÷ dias uteis mes) × dias uteis restantes
+                            </p>
+                            <p class="text-gray-700 mt-1">
+                                = (R$ {{ number_format($perdaDemissao->value_base, 2, ',', '.') }}
+                                ÷ {{ $perdaDemissao->dias_uteis_mes }})
+                                × {{ $perdaDemissao->dias_uteis_restantes }}
+                                = <strong>R$ {{ number_format($perdaDemissao->perda_estimada, 2, ',', '.') }}</strong>
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="bg-white border border-gray-200 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 uppercase">Dias úteis no mês</p>
+                                <p class="text-lg font-semibold text-gray-800">{{ $perdaDemissao->dias_uteis_mes }}</p>
+                            </div>
+                            <div class="bg-white border border-gray-200 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 uppercase">Valor por dia útil</p>
+                                <p class="text-lg font-semibold text-gray-800">
+                                    R$ {{ number_format($perdaDemissao->valor_por_dia, 2, ',', '.') }}
+                                </p>
+                            </div>
+                            <div class="bg-white border border-gray-200 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 uppercase">Dias úteis restantes</p>
+                                <p class="text-lg font-semibold text-gray-800">{{ $perdaDemissao->dias_uteis_restantes }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <p class="text-sm text-gray-600 mb-2">
+                            <strong>Detalhes do value_base</strong> (somatório do mês usando: <code>final_value</code> quando existe e é diferente de 0, senão <code>total_value</code>):
+                        </p>
+
+                        @if($perdaDemissaoBeneficios->isEmpty())
+                            <p class="text-sm text-gray-500">Nenhum benefício mensal encontrado para compor o value_base.</p>
+                        @else
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full text-sm">
+                                    <thead>
+                                        <tr class="bg-gray-100 text-left text-xs font-semibold text-gray-500 uppercase">
+                                            <th class="px-3 py-2">Benefício</th>
+                                            <th class="px-3 py-2">Operadora</th>
+                                            <th class="px-3 py-2">Cod</th>
+                                            {{-- <th class="px-3 py-2">Total</th>
+                                            <th class="px-3 py-2">Final</th> --}}
+                                            <th class="px-3 py-2">Valor usado no cálculo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100">
+                                        @foreach($perdaDemissaoBeneficios as $row)
+                                            <tr>
+                                                <td class="px-3 py-2">{{ $row->description }}</td>
+                                                <td class="px-3 py-2">{{ $row->operator ?? '-' }}</td>
+                                                <td class="px-3 py-2">{{ $row->cod ?? '-' }}</td>
+                                                {{-- <td class="px-3 py-2">R$ {{ number_format($row->total_value ?? 0, 2, ',', '.') }}</td>
+                                                <td class="px-3 py-2">
+                                                    {{ ($row->final_value !== null) ? 'R$ '.number_format($row->final_value, 2, ',', '.') : '-' }}
+                                                </td> --}}
+                                                <td class="px-3 py-2 font-semibold">
+                                                    R$ {{ number_format($row->value_used ?? 0, 2, ',', '.') }}
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+            </div>
+
 
             {{-- 📅 Histórico Mensal --}}
             <h3 class="text-lg font-semibold text-gray-700 mb-3">Histórico Mensal (no período selecionado)</h3>

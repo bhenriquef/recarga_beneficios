@@ -359,7 +359,98 @@ class EmployeeController extends Controller
             ->sortByDesc('start_date')
             ->values();
 
+        // ================== PERDA ESTIMADA (se demitido) ==================
+        $perdaDemissao = null;
+        $perdaDemissaoBeneficios = collect();
+
+        if (!is_null($employee->shutdown_date)) {
+            $shutdown = Carbon::parse($employee->shutdown_date)->startOfDay();
+
+            // Mês calendário da demissão
+            $startOfMonth = $shutdown->copy()->startOfMonth()->startOfDay();
+            $endOfMonth   = $shutdown->copy()->endOfMonth()->startOfDay();
+
+            // Dias úteis restantes (Seg–Sáb) a partir do dia seguinte à demissão
+            $cursor = $shutdown->copy()->addDay();
+            $diasUteisRestantes = 0;
+
+            while ($cursor->lte($endOfMonth)) {
+                if (!$cursor->isSunday()) {
+                    $diasUteisRestantes++;
+                }
+                $cursor->addDay();
+            }
+
+            // Dias úteis do mês (Seg–Sáb) — usando sua função existente
+            $diasUteisMes = calcularDiasUteisComSabado($startOfMonth, $endOfMonth);
+
+            // Mês de referência para buscar os benefícios (aqui: mês da demissão)
+            // Atenção: no seu banco, "m.date" parece ser a data do mês (ex: 2025-01-01).
+            $refDate = $startOfMonth->copy(); // 1º dia do mês da demissão
+
+            // Resumo (igual dashboard): soma do value e média work_days (se você usa isso em algum lugar)
+            $benefResumo = DB::table('employees_benefits_monthly as m')
+                ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+                ->whereDate('m.date', $refDate->format('Y-m-d'))
+                ->where('eb.employee_id', $id)
+                ->whereNull('m.deleted_at')
+                ->selectRaw('
+                    SUM(CASE WHEN m.final_value IS NOT NULL AND m.final_value <> 0 THEN m.final_value ELSE m.total_value END) as soma_value,
+                    AVG(m.work_days) as dias_trabalhados
+                ')
+                ->first();
+
+            $valueBase = (float) ($benefResumo?->soma_value ?? 0);
+            $diasTrabalhados = (float) ($benefResumo?->dias_trabalhados ?? 0);
+
+            // Detalhamento por benefício (pra explicar o "value_base")
+            $perdaDemissaoBeneficios = DB::table('employees_benefits_monthly as m')
+                ->join('employees_benefits as eb', 'eb.id', '=', 'm.employee_benefit_id')
+                ->join('benefits as b', 'b.id', '=', 'eb.benefits_id')
+                ->whereDate('m.date', $refDate->format('Y-m-d'))
+                ->where('eb.employee_id', $id)
+                ->whereNull('m.deleted_at')
+                ->selectRaw('
+                    b.description,
+                    b.operator,
+                    b.cod,
+                    m.total_value,
+                    m.final_value,
+                    m.work_days,
+                    CASE
+                        WHEN m.final_value IS NOT NULL AND m.final_value <> 0 THEN m.final_value
+                        ELSE m.total_value
+                    END as value_used
+                ')
+                ->orderBy('b.description')
+                ->get();
+
+            $valorPorDia = ($diasUteisMes > 0) ? ($valueBase / $diasUteisMes) : 0;
+            $perdaEstimada = $valorPorDia * $diasUteisRestantes;
+
+            $perdaDemissao = (object) [
+                'shutdown_date' => $shutdown->format('d/m/Y'),
+                'mes_referencia_label' => $refDate->format('m/Y'),
+                'periodo_inicio' => $startOfMonth->format('d/m/Y'),
+                'periodo_fim' => $endOfMonth->format('d/m/Y'),
+                'dias_uteis_mes' => (int) $diasUteisMes,
+                'dias_uteis_restantes' => (int) $diasUteisRestantes,
+                'dias_trabalhados' => $diasTrabalhados, // opcional (só pra debug/insight)
+                'value_base' => $valueBase,
+                'valor_por_dia' => $valorPorDia,
+                'perda_estimada' => (float) $perdaEstimada,
+            ];
+
+            // Se quiser “não mostrar” quando não tem base
+            if ($perdaDemissao->value_base <= 0) {
+                $perdaDemissao = null;
+                $perdaDemissaoBeneficios = collect();
+            }
+        }
+
         return view('employees.show', compact(
+            'perdaDemissao',
+            'perdaDemissaoBeneficios',
             'employee',
             'tempoEmpresaTexto',
             'mediaDiasTrabalhados',
